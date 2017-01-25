@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <connections>
+    <connection Server="" Database="" UserID="" Password="" />
+  </connections>
+  <table name="TableName" />
+  <sp name="SPName">
+    <Result name="Result1">
+      <Parameter name="Result1ParameterName1" type="bigint" />
+      <Parameter name="Result1ParameterName2" type="date" />
+      <Parameter name="Result1ParameterName3" />
+    </Result>
+    <Result name="Result2">
+      <Parameter name="Result2ParameterName1" type="date" />
+    </Result>
+  </sp>
+</root>
