@@ -57,37 +57,11 @@ foreach (string item in ProjectItemList)
     project.Save();
 }
 if (ProjectItemList.Count!=0) return string.Empty;
-/*foreach (var item in project.Items)
-{
-    if (item.ItemType != "Content") continue;
-    if (item.EvaluatedInclude.IndexOf("TModel.tt")==-1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude")==-1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude")==-1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude")==-1) continue;
-	bool Control = false;
-    foreach (var item2 in item.DirectMetadata)
-    {
-        if (item2.Name != "DependentUpon") continue;
-		Control = true;
-        if (item2.UnevaluatedValue != "xml.TModel")
-        {
-			item2.UnevaluatedValue = "xml.TModel";
-			project.Save();
-            return string.Empty;
-        }
-    }
-	if(Control) continue;
-	item.SetMetadataValue("DependentUpon", "xml.TModel");
-	project.Save();
-	return string.Empty;
-}*/
 #>
 
 <# 
    var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
    
-#>
-
-<#
-
-
 
 List<SQLConnectionData> SCD = new List<SQLConnectionData>();
 
@@ -96,16 +70,13 @@ List<SQLConnectionData> SCD = new List<SQLConnectionData>();
 
 
 System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
-//xmlDoc.Load(Host.ResolvePath(".").ToString().Replace("\\ModelsTables\\.","\\ModelsTables\\xml.TModel"));
 xmlDoc.Load(this.Host.ResolvePath("xml.TModel"));
 System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
 
 
-
-//List<Connection> Connections = new List<Connection>();
-List<string> TableList = new List<string>();
+List<string> Ineffaceable = new List<string>();
+List<Tables> TableList = new List<Tables>();
 List<SPData> SPList = new List<SPData>();
-//manager.StartNewFile("AAA.cs");
 foreach (System.Xml.XmlNode userNode in userNodes)
 {
 	System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
@@ -120,71 +91,69 @@ foreach (System.Xml.XmlNode userNode in userNodes)
 				if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
 				if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
 				if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
-				/*Connections.Add(new Connection(){
-					Server = connection.Attributes["Server"].Value,
-					Database = connection.Attributes["Database"].Value,
-					UserID = connection.Attributes["UserID"].Value,
-					Password = connection.Attributes["Password"].Value
-				});*/
+				if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
 				SCD.Add(new SQLConnectionData(){
+					Name = connection.Attributes["name"].Value,
 					ServerIP = connection.Attributes["Server"].Value,
 					DBName = connection.Attributes["Database"].Value,
 					User = connection.Attributes["UserID"].Value,
 					Password = connection.Attributes["Password"].Value
 				});
-				config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["Database"].Value,ConnectionString=string.Format("Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value) });
-				
+				config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value) });
+				Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
 
 				
 			}
 		}
-		if(node.Name=="table")	TableList.Add(node.Attributes["name"].Value);
-		if (node.Name == "sp")
-        {
-            List<SPResult> ResultsData = new List<SPResult>();
-            foreach (System.Xml.XmlNode result in node)
-            {
-                if (result.Name != "Result") continue;
-                List<SPParam> ParamsData = new List<SPParam>();
-                foreach (System.Xml.XmlNode parameter in result)
-                {
-                    string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
-                    ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
-                }
-                ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
-            }
-            SPList.Add(new SPData() { Name = node.Attributes["name"].Value, Results = ResultsData });
-        }
+
+		if(node.Name=="database")
+		{
+			foreach(System.Xml.XmlNode databasevalues in node)
+			{
+				if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
+				if (databasevalues.Name == "sp")
+				{
+					List<SPResult> ResultsData = new List<SPResult>();
+
+					foreach (System.Xml.XmlNode result in databasevalues)
+					{
+						if (result.Name != "Result") continue;
+						List<SPParam> ParamsData = new List<SPParam>();
+						foreach (System.Xml.XmlNode parameter in result)
+						{
+							string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
+							ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+						}
+						ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
+					}
+					SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
+				}
+		
+			}
+		}
+		
 	}
 }
 
+
+foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
+{
+	if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
+	if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
+}
+
 config.Configuration.Save();
-    //**********************************************************************************************
-    // This T4 generates POCOs from the specified DB and saves them to the specified folder which 
-    // is relative to the template's location. One file per table/POCO.
-    //**********************************************************************************************
- 
-    //****************************
-    // DEFINE YOUR VARIABLES HERE
-    //****************************
-    // The SQL server name or IP
 
 	
 
 foreach(SQLConnectionData SData in SCD){
     string sqlServer = SData.ServerIP;
-    // The SQL username
     string sqlLogin = SData.User;
-    // The SQL password
     string sqlPassword = SData.Password;
-    // The SQL database to generate the POCOs for
     string sqlDatabase = SData.DBName;
-    // The namespace to apply to the generated classes
-    string classNamespace = "GBAK" + "." + sqlDatabase;
-    // The destination folder for the generated classes, relative to this file's location.
+    string classNamespace = "GBAK" + "." + SData.Name;
     string destinationFolder = "";
  
-    // Loop over each table and create a class file!
 
 
 	Server server = new Server(sqlServer);
@@ -193,22 +162,21 @@ foreach(SQLConnectionData SData in SCD){
     server.ConnectionContext.Password = sqlPassword;
     server.ConnectionContext.Connect();
 	
-	GenerateSP(server,"GBAK",classNamespace,SData,SPList,ref manager);
+	GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
 
 
 
     foreach (Table table in server.Databases[sqlDatabase].Tables)
     {
-        // Skip sys tables
         if (table.Name.StartsWith("sys"))
         {
             continue;
         }
-		if(TableList.Where(z => z == table.Name).FirstOrDefault()==null){
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 			continue;
 		}
 #>
-<#manager.StartNewFile(sqlDatabase + "_Table_" + table.Name + ".cs");#>
+<#manager.StartNewFile(SData.Name + "_Table_" + table.Name + ".cs");#>
 using System;
 using System.Data.Linq.Mapping;
 namespace <#= classNamespace #>
@@ -218,27 +186,22 @@ namespace <#= classNamespace #>
 		public class <#= table.Name #>: BS
 		{
 <# 
-			// Keep count so we don't whitespace the last property/column
 			int columnCount = table.Columns.Count;
 			int i = 0;
  
-			// Iterate all columns
 		
 			foreach (Column col in table.Columns)
 			{
 				i++;
 				string propertyType = GetNetDataType(col.DataType.Name);
  
-				// If we can't map it, skip it
 				if (string.IsNullOrWhiteSpace(propertyType))
 				{
-					// Skip
 					continue;
 				}
  
 				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
 
-				// Handle nullable columns by making the type nullable
 				if (col.Nullable && propertyType != "string")
 				{
 					propertyType += "?";
@@ -248,7 +211,6 @@ namespace <#= classNamespace #>
 			[Column(Name = "<#=col.Name#>")]
 			public <#= propertyType #> <#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
 <#
-				// Do we insert the space?
 				if (i != columnCount)
 				{
 #>
@@ -263,15 +225,15 @@ namespace <#= classNamespace #>
 		}
 	}
 }    
-<#manager.StartNewFile(sqlDatabase + "_Engine_Table_" + table.Name + ".cs");#>
+<#manager.StartNewFile(SData.Name + "_Engine_Table_" + table.Name + ".cs");#>
 using System;
 using System.Linq;
 using System.Data.Linq;
 using System.Data.Linq.Mapping;
-namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
+namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 {
 	internal static class Table_<#=table.Name#>{
-		public static bool UPDATE(GBAK.<#=sqlDatabase#>.Tables.<#=table.Name#> values) {
+		public static bool UPDATE(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
 <#
 			string SETColumn = "";
 			string SETColumnValue = "";
@@ -280,7 +242,7 @@ namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
 			string SETParamsObj = "";
 			string Temp1 = "";
 #>
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=sqlDatabase#>))
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
             {
 <#
 				
@@ -310,7 +272,7 @@ namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
             }
             return true;
         }
-		public static GBAK.Error Add(GBAK.<#=sqlDatabase#>.Tables.<#=table.Name#> values) {
+		public static GBAK.Error Add(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
 <#
 			SETColumn = "";
 			SETColumnValue = "";
@@ -318,7 +280,7 @@ namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
 			Temp1 = "";
 #>
 			GBAK.Error e = new GBAK.Error();
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=sqlDatabase#>))
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
             {
 <#
 				
@@ -353,18 +315,10 @@ namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
             }
             return e;
         }
-		public static bool DELETE(IQueryable<GBAK.<#=sqlDatabase#>.Tables.<#=table.Name#>> values) {
+		public static bool DELETE(IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> values) {
 <#
-			/*
-			string SETColumn = "";
-			string SETColumnValue = "";
-			string SETPrimaryColumn = "";
-			string SETPrimaryColumnValue = "";
-			string SETParamsObj = "";
-			string Temp1 = "";
-			*/
 #>
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=sqlDatabase#>))
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
             {
 <#
 				
@@ -399,87 +353,69 @@ namespace <#= "GBAK" + "." + SData.DBName + ".Engine" #>
 	}
 }
 <#
-        // Write new POCO class to its own file
-        //SaveOutput(table.Name + ".cs", destinationFolder);
-		//manager.StartNewFile("table_" + table.Name+ ".cs");
     }
 #>
-<#manager.StartNewFile("BaseAndExtensions_" + SData.DBName + ".cs");#>
+<#manager.StartNewFile("BaseAndExtensions_" + SData.Name + ".cs");#>
 using System;
 using System.Linq;
 using System.Data.Linq;
 using System.Data.Linq.Mapping;
-public static class Extensions
+using GBAK.Engine;
+public static class Extensions_<#=SData.Name#>
 {
-	public static bool Remove<T>(this IQueryable<T> value) where T : GBAK.<#=sqlDatabase#>.Tables.BS
+/*	public static bool Remove<T>(this IQueryable<T> value) where T : GBAK.<#=SData.Name#>.Tables.BS
     {
         string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
 
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
-			// Skip sys tables
 			if (table.Name.StartsWith("sys"))
 			{
 				continue;
 			}
-			if(TableList.Where(z => z == table.Name).FirstOrDefault()==null){
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 				continue;
 			}
 #>
-		if(TableName=="<#=table.Name#>") return GBAK.<#=SData.DBName#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.DBName#>.Tables.<#=table.Name#>>);
+		if(TableName=="<#=table.Name#>") return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
 <#
 		}
 #>
 
         return false;
     }
-	public static bool Save<T>(this T value) where T : GBAK.<#=sqlDatabase#>.Tables.BS
-    {
-        string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
-        
+*/
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
-			// Skip sys tables
+
 			if (table.Name.StartsWith("sys"))
 			{
 				continue;
 			}
-			if(TableList.Where(z => z == table.Name).FirstOrDefault()==null){
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 				continue;
 			}
 #>
-		if(TableName=="<#=table.Name#>") return GBAK.<#=SData.DBName#>.Engine.Table_<#=table.Name#>.UPDATE(value as GBAK.<#=SData.DBName#>.Tables.<#=table.Name#>);
-<#
-		}
-#>
-        
+	public static bool Remove(this IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> value)
+    {
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
+		return false;
+	}
+	public static bool Save(this GBAK.<#=SData.Name#>.Tables.<#=table.Name#> value) 
+    {
+        //string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
+		//if(TableName=="<#=table.Name#>") 
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.UPDATE(value as GBAK.<#=SData.Name#>.Tables.<#=table.Name#>);
         return false;
     }
-    /*
-	public static string Save<T>(this System.Data.Linq.Table<T> value) where T : GBAK.<#=SData.DBName#>.Tables.BS
-    {
-		string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
-        return "";
-    }
-	*/
-	public static TValue GetAttributeValue<TAttribute, TValue>(
-        this Type type,
-        Func<TAttribute, TValue> valueSelector)
-        where TAttribute : Attribute
-    {
-        var att = type.GetCustomAttributes(
-            typeof(TAttribute), true
-        ).FirstOrDefault() as TAttribute;
-        if (att != null)
-        {
-            return valueSelector(att);
-        }
-        return default(TValue);
-    }
+   
+<#
+		}
+#>	
 }
-namespace <#= "GBAK" + "." + SData.DBName #>
+namespace <#= "GBAK" + "." + SData.Name #>
 {
 	public partial class Tables{
 		public class BS { }
@@ -488,25 +424,24 @@ namespace <#= "GBAK" + "." + SData.DBName #>
 		public class SS { }
 	}
 }
-<#manager.StartNewFile(SData.DBName + "_Add.cs");#>
+<#manager.StartNewFile(SData.Name + "_Add.cs");#>
 using System;
-namespace <#= "GBAK" + "." + SData.DBName #>
+namespace <#= "GBAK" + "." + SData.Name #>
 {
 	public partial class Tables
     {
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
-			// Skip sys tables
 			if (table.Name.StartsWith("sys"))
 			{
 				continue;
 			}
-			if(TableList.Where(z => z == table.Name).FirstOrDefault()==null){
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 				continue;
 			}
 #>
-        public static GBAK.Error Add(<#=sqlDatabase#>.Tables.<#=table.Name#> values)
+        public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
         {
 			return Engine.Table_<#=table.Name#>.Add(values);
         }
@@ -515,28 +450,26 @@ namespace <#= "GBAK" + "." + SData.DBName #>
 #>
     }
 }
-<#manager.StartNewFile(SData.DBName + "_Tables.cs");#>
+<#manager.StartNewFile(SData.Name + "_Tables.cs");#>
 using System;
-namespace <#= "GBAK" + "." + SData.DBName #>
+namespace <#= "GBAK" + "." + SData.Name #>
 {
 	public partial class Tables
     {
         public static int CommandTimeout { get; set; } = 30;
     }
 }
-<#manager.StartNewFile(SData.DBName + "_Select.cs");#>
+<#manager.StartNewFile(SData.Name + "_Select.cs");#>
 using System;
-//using System.Data.SqlClient;
-//using System.Collections.Generic;
 using System.Data.Linq;
-namespace <#= "GBAK" + "." + SData.DBName #>
+namespace <#= "GBAK" + "." + SData.Name #>
 {
 	public partial class Tables{
 		public class SELECT: IDisposable
 		{
-			DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.DBName#>);
+			DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>);
 			public SELECT(){
-				d.CommandTimeout = <#=SData.DBName#>.Tables.CommandTimeout;
+				d.CommandTimeout = <#=SData.Name#>.Tables.CommandTimeout;
 				d.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;");
 			}
 			public void Dispose()
@@ -546,18 +479,17 @@ namespace <#= "GBAK" + "." + SData.DBName #>
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
-			// Skip sys tables
 			if (table.Name.StartsWith("sys"))
 			{
 				continue;
 			}
-			if(TableList.Where(z => z == table.Name).FirstOrDefault()==null){
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 				continue;
 			}
 #>
-			public Table<<#=SData.DBName#>.Tables.<#=table.Name#>> <#=table.Name#>()
+			public Table<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
 			{
-				return d.GetTable<<#=SData.DBName#>.Tables.<#=table.Name#>>();
+				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
 			}
 <#
 		}
@@ -578,7 +510,7 @@ namespace <#= "GBAK" + ".Engine" #>
 		
 		<#
 		foreach(SQLConnectionData SData in SCD){#>
-		public static SqlConnection Connection_<#=SData.DBName#> = new SqlConnection(System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.DBName#>"].ConnectionString);
+		public static SqlConnection Connection_<#=SData.Name#> = new SqlConnection(System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.Name#>"].ConnectionString);
 		<#}#>
 	}
 }
@@ -609,11 +541,25 @@ long	-9,223,372,036,854,775,808 to 9,223,372,036,854,775,807	Signed 64-bit integ
 ulong	0 to 18,446,744,073,709,551,615	Unsigned 64-bit integer
 */
 using System;
- 
+using System.Linq;
 namespace <#= "GBAK" + ".Engine" #>
 {
     public static class HelperMethods
     {
+		public static TValue GetAttributeValue<TAttribute, TValue>(
+        this Type type,
+        Func<TAttribute, TValue> valueSelector)
+        where TAttribute : Attribute
+		{
+			var att = type.GetCustomAttributes(
+				typeof(TAttribute), true
+			).FirstOrDefault() as TAttribute;
+			if (att != null)
+			{
+				return valueSelector(att);
+			}
+			return default(TValue);
+		}
 <#
 		foreach (var item in new List<string>() { "long", "byte[]", "bool", "char", "DateTime", "decimal", "double", "int", "string", "Single", "short", "byte", "Guid", "long?", "bool?", "char?", "DateTime?", "decimal?", "double?", "int?", "Single?", "short?", "byte?", "Guid?" })
 		{
@@ -773,13 +719,11 @@ namespace <#= "GBAK" + ".Engine" #>
  
     void SaveOutput(string outputFileName, string destinationFolder)
     {
-        // Write to destination folder
         string templateDirectory = Path.Combine(Path.GetDirectoryName(Host.TemplateFile), destinationFolder);
         string outputFilePath = Path.Combine(templateDirectory, outputFileName);
         File.Delete(outputFilePath);
         File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
  
-        // Flush generation
         this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
     }
 	
@@ -788,8 +732,14 @@ namespace <#= "GBAK" + ".Engine" #>
 		public string User="";
 		public string DBName="";
 		public string Password="";
+		public string Name="";
+	}
+	public class Tables{
+		public string DBIdName = "";
+		public string Name = "";
 	}
 	public class SPData{
+		public string DBIdName = "";
 		public string Name = "";
 		public List<SPResult> Results = new List<SPResult>();
 	}
@@ -801,10 +751,5 @@ namespace <#= "GBAK" + ".Engine" #>
 		public string Name = "";
 		public string Type = "";
 	}
-	public class Connection{
-		public string Server = "";
-		public string Database = "";
-		public string UserID = "";
-		public string Password = "";
-	}
+	
 #>

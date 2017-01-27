@@ -1,19 +1,19 @@
 ﻿<#@output extension=".txt"#>
 <#+
-	void GenerateSP(Server server,string classNamespaceRoot, string classNamespace,SQLConnectionData SData,List<SPData> SPList,ref TemplateFileManager manager){
-	//
+	void GenerateSP(string DBId, Server server,string classNamespaceRoot, string classNamespace,SQLConnectionData SData,List<SPData> SPList,ref TemplateFileManager manager){
+	
 		try
         {
 			foreach (StoredProcedure item in server.Databases[SData.DBName].StoredProcedures)
             {
-                var SPItem = SPList.Where(z => z.Name == item.Name).FirstOrDefault();
+                var SPItem = SPList.Where(z => (z.Name == item.Name) && (z.DBIdName == DBId)).FirstOrDefault();
                 if (SPItem==null) continue;
                 
                 
                 
 
             
-				manager.StartNewFile(SData.DBName + "_SP_" + item.Name + ".cs");      
+				manager.StartNewFile(DBId + "_SP_" + item.Name + ".cs");      
 #>
 using System;
 using System.Collections.Generic;
@@ -65,7 +65,7 @@ namespace <#= classNamespace #>
 }
 <#+
 			}
-			manager.StartNewFile(SData.DBName + "_SP.cs");
+			manager.StartNewFile(DBId + "_SP.cs");
 #>
 using System;
 using System.Linq;
@@ -76,9 +76,9 @@ namespace <#=classNamespace#>
 	public partial class SP{
 		public class EXEC: IDisposable
 		{
-			DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=SData.DBName#>);
+			DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=DBId#>);
 			public EXEC(){
-				d.CommandTimeout = <#=SData.DBName#>.Tables.CommandTimeout;
+				d.CommandTimeout = <#=DBId#>.Tables.CommandTimeout;
 			}
 			public void Dispose()
 			{
@@ -129,7 +129,6 @@ namespace <#=classNamespace#>
 						string pt2 = pt + (pt=="string" | pt=="byte[]"?"":"?");
 						
 #>
-//(ds.Tables[<#=t_i#>].Rows[i]["<#=Param.Name#>"])
 						<#=Param.Name#> = (ds.Tables[<#=t_i#>].Rows[i]["<#=Param.Name#>"] is DBNull ? null : (<#=pt2#>)<#=ConvertObject(pt,"ds.Tables[{0}].Rows[i][\"{1}\"]",t_i,Param.Name)#>),
 <#+
 					}
@@ -150,7 +149,7 @@ namespace <#=classNamespace#>
 	}
 }
 <#+
-						manager.StartNewFile(SData.DBName + "_Engine_SP.cs");
+						manager.StartNewFile(DBId + "_Engine_SP.cs");
 #>
 using System;
 using System.Data.Linq;
