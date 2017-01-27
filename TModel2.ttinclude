@@ -76,13 +76,13 @@ namespace <#=classNamespace#>
 	public partial class SP{
 		public class EXEC: IDisposable
 		{
-			DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=DBId#>);
+			//DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=DBId#>);
 			public EXEC(){
-				d.CommandTimeout = <#=DBId#>.Tables.CommandTimeout;
+				//d.CommandTimeout = <#=DBId#>.Tables.CommandTimeout;
 			}
 			public void Dispose()
 			{
-				d.Dispose();
+				//d.Dispose();
 			}
 <#+
 			foreach (StoredProcedure item in server.Databases[SData.DBName].StoredProcedures)
@@ -109,7 +109,7 @@ namespace <#=classNamespace#>
 <#+
 				}
 #>
-				System.Data.DataSet ds = Engine.ExecutionModel.Exec(d,"<#=item.Name#>", param);
+				System.Data.DataSet ds = Engine.ExecutionModel.Exec("<#=item.Name#>", param);
 				SP.<#=item.Name#> temp = new SP.<#=item.Name#>();
 <#+
 				int t_i=0;
@@ -158,52 +158,52 @@ namespace <#=classNamespace#>.Engine
 {
 	internal static class ExecutionModel
 	{
-		public static System.Data.DataSet Exec(DataContext d,string CommandText, System.Data.SqlClient.SqlParameter[] values)
+		public static System.Data.DataSet Exec(string CommandText, System.Data.SqlClient.SqlParameter[] values)
         {
             System.Data.DataSet result = new System.Data.DataSet();
             try
             {
-                using (var context = new DataContext(d.Connection.ConnectionString))
-                {
-                    context.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED");
                     
-                    using (SqlConnection dc = (SqlConnection)context.Connection)
+                using (SqlConnection dc = new SqlConnection(GBAK.Engine.PublicVariable.Connection_<#=DBId#>))
+                {
+					SqlCommand cmdUn = dc.CreateCommand();
+					cmdUn.CommandText = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;";
+                    SqlCommand cmd = dc.CreateCommand();
+                    cmd.CommandText = CommandText;
+                    cmd.CommandType = System.Data.CommandType.StoredProcedure;
+                    if (values.Length != 0)
                     {
-                        SqlCommand cmd = dc.CreateCommand();
-                        cmd.CommandText = CommandText;
-                        cmd.CommandType = System.Data.CommandType.StoredProcedure;
-                        if (values.Length != 0)
+                        if (values != null)
                         {
-                            if (values != null)
+                            foreach (SqlParameter param in values)
                             {
-                                foreach (SqlParameter param in values)
+                                if (param.Value == null)
                                 {
-                                    if (param.Value == null)
-                                    {
-                                        param.Value = DBNull.Value;
-                                    }
-                                    else
-                                    {
-                                        if (param.Value is string)
-                                        {
-                                            param.Value = param.Value.ToString().Replace("'", "''");
-                                        }
-                                    }
-                                    cmd.Parameters.Add(param);
+                                    param.Value = DBNull.Value;
                                 }
+                                else
+                                {
+                                    if (param.Value is string)
+                                    {
+                                        param.Value = param.Value.ToString().Replace("'", "''");
+                                    }
+                                }
+                                cmd.Parameters.Add(param);
                             }
                         }
-                        SqlDataAdapter da = new SqlDataAdapter();
-                        da.SelectCommand = (SqlCommand)cmd;
-                        dc.Open();
-                        da.Fill(result);
-                        dc.Close();
-                        dc.Dispose();
-                        da = null;
-                        return result;
                     }
-                    
+                    SqlDataAdapter da = new SqlDataAdapter();
+                    da.SelectCommand = (SqlCommand)cmd;
+                    dc.Open();
+					cmdUn.ExecuteNonQuery();
+                    da.Fill(result);
+                    dc.Close();
+                    dc.Dispose();
+                    da = null;
+                    return result;
                 }
+                    
+                
                 
             }
             catch (Exception ex)

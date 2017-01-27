@@ -510,7 +510,7 @@ namespace <#= "GBAK" + ".Engine" #>
 		
 		<#
 		foreach(SQLConnectionData SData in SCD){#>
-		public static SqlConnection Connection_<#=SData.Name#> = new SqlConnection(System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.Name#>"].ConnectionString);
+		public static string Connection_<#=SData.Name#> = System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.Name#>"].ConnectionString;
 		<#}#>
 	}
 }
