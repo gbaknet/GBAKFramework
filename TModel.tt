@@ -24,43 +24,61 @@ ProjectName = ProjectName.Substring(0,ProjectName.LastIndexOf('.'));
 var collection = new ProjectCollection();
 var project = collection.LoadProject(p.FullName);
 string EvaluatedIncludeTModel = "";
-List<string> ProjectItemList = new List<string>() { "TModel2.ttinclude", "TModel3.ttinclude", "TModel4.ttinclude" };
-foreach (var item in project.Items)
+
+
+try
 {
-    if (item.ItemType != "Content") continue;
+	List<string> ProjectItemList = new List<string>() { "TModel2.ttinclude", "TModel3.ttinclude", "TModel4.ttinclude" };
+
+
+	foreach (var item in project.Items)
+	{
+		if (item.ItemType != "Content") {
+			if (item.ItemType!="None") continue;
+			if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+			project.Items.Remove(item);
+			project.Save();
+		}
                 
-    if (item.EvaluatedInclude.IndexOf("TModel.tt") == -1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
-    if (item.EvaluatedInclude.IndexOf("TModel.tt") != -1) EvaluatedIncludeTModel = item.EvaluatedInclude.Replace("TModel.tt","");
-    if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") != -1) ProjectItemList.Remove("TModel2.ttinclude");
-    if (item.EvaluatedInclude.IndexOf("TModel3.ttinclude") != -1) ProjectItemList.Remove("TModel3.ttinclude");
-    if (item.EvaluatedInclude.IndexOf("TModel4.ttinclude") != -1) ProjectItemList.Remove("TModel4.ttinclude");
-    bool Control = false;
-    foreach (var item2 in item.DirectMetadata)
-    {
-        if (item2.Name != "DependentUpon") continue;
-        Control = true;
-        if (item2.UnevaluatedValue != "xml.TModel")
-        {
-            item2.UnevaluatedValue = "xml.TModel";
-            project.Save();
-        }
-    }
-    if (Control) continue;
-    item.SetMetadataValue("DependentUpon", "xml.TModel");
-    project.Save();
+		if (item.EvaluatedInclude.IndexOf("TModel.tt") == -1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+		if (item.EvaluatedInclude.IndexOf("TModel.tt") != -1) EvaluatedIncludeTModel = item.EvaluatedInclude.Replace("TModel.tt","");
+		if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") != -1) ProjectItemList.Remove("TModel2.ttinclude");
+		if (item.EvaluatedInclude.IndexOf("TModel3.ttinclude") != -1) ProjectItemList.Remove("TModel3.ttinclude");
+		if (item.EvaluatedInclude.IndexOf("TModel4.ttinclude") != -1) ProjectItemList.Remove("TModel4.ttinclude");
+		bool Control = false;
+		foreach (var item2 in item.DirectMetadata)
+		{
+			if (item2.Name != "DependentUpon") continue;
+			Control = true;
+			if (item2.UnevaluatedValue != "xml.TModel")
+			{
+				item2.UnevaluatedValue = "xml.TModel";
+				project.Save();
+			}
+		}
+		if (Control) continue;
+		item.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+		item.SetMetadataValue("DependentUpon", "xml.TModel");
+		project.Save();
+	}
+	foreach (string item in ProjectItemList)
+	{
+		project.AddItem("Content", EvaluatedIncludeTModel + item);
+		var item2 = project.Items.Where(z => (z.ItemType == "Content") && (z.UnevaluatedInclude == EvaluatedIncludeTModel + item)).FirstOrDefault();
+		item2.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+		item2.SetMetadataValue("DependentUpon", "xml.TModel");
+		project.Save();
+	}
+	if (ProjectItemList.Count!=0) return string.Empty;
 }
-foreach (string item in ProjectItemList)
-{
-    project.AddItem("Content", EvaluatedIncludeTModel + item);
-    var item2 = project.Items.Where(z => (z.ItemType == "Content") && (z.UnevaluatedInclude == EvaluatedIncludeTModel + item)).FirstOrDefault();
-    item2.SetMetadataValue("DependentUpon", "xml.TModel");
-    project.Save();
+catch(Exception ex){
+	
 }
-if (ProjectItemList.Count!=0) return string.Empty;
 #>
 
 <# 
-   var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
+
+var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
    
 
 List<SQLConnectionData> SCD = new List<SQLConnectionData>();
@@ -77,72 +95,87 @@ System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
 List<string> Ineffaceable = new List<string>();
 List<Tables> TableList = new List<Tables>();
 List<SPData> SPList = new List<SPData>();
-foreach (System.Xml.XmlNode userNode in userNodes)
-{
-	System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
 
-    foreach(System.Xml.XmlNode node in ProcList)
+try
+{
+
+	foreach (System.Xml.XmlNode userNode in userNodes)
 	{
-		if(node.Name=="connections")
+		System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
+
+		foreach(System.Xml.XmlNode node in ProcList)
 		{
-			foreach (System.Xml.XmlNode connection in node)
-            {
-				if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
-				if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
-				if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
-				if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
-				if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
-				SCD.Add(new SQLConnectionData(){
-					Name = connection.Attributes["name"].Value,
-					ServerIP = connection.Attributes["Server"].Value,
-					DBName = connection.Attributes["Database"].Value,
-					User = connection.Attributes["UserID"].Value,
-					Password = connection.Attributes["Password"].Value
-				});
-				config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value) });
-				Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+			if(node.Name=="connections")
+			{
+				foreach (System.Xml.XmlNode connection in node)
+				{
+					if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
+					if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
+					if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
+					if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
+					if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
+					SCD.Add(new SQLConnectionData(){
+						Name = connection.Attributes["name"].Value,
+						ServerIP = connection.Attributes["Server"].Value,
+						DBName = connection.Attributes["Database"].Value,
+						User = connection.Attributes["UserID"].Value,
+						Password = connection.Attributes["Password"].Value
+					});
+					config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value) });
+					Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
 
 				
-			}
-		}
-
-		if(node.Name=="database")
-		{
-			foreach(System.Xml.XmlNode databasevalues in node)
-			{
-				if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
-				if (databasevalues.Name == "sp")
-				{
-					List<SPResult> ResultsData = new List<SPResult>();
-
-					foreach (System.Xml.XmlNode result in databasevalues)
-					{
-						if (result.Name != "Result") continue;
-						List<SPParam> ParamsData = new List<SPParam>();
-						foreach (System.Xml.XmlNode parameter in result)
-						{
-							string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
-							ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
-						}
-						ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
-					}
-					SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
 				}
-		
 			}
-		}
+
+			if(node.Name=="database")
+			{
+				foreach(System.Xml.XmlNode databasevalues in node)
+				{
+					if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
+					if (databasevalues.Name == "sp")
+					{
+						List<SPResult> ResultsData = new List<SPResult>();
+
+						foreach (System.Xml.XmlNode result in databasevalues)
+						{
+							if (result.Name != "Result") continue;
+							List<SPParam> ParamsData = new List<SPParam>();
+							foreach (System.Xml.XmlNode parameter in result)
+							{
+								string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
+								ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+							}
+							ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
+						}
+						SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
+					}
 		
+				}
+			}
+		
+		}
 	}
+
+}
+catch(Exception ex){
+	throw new Exception(ex.Message);
 }
 
 
-foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
-{
-	if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
-	if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
+try{
+	foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
+	{
+		if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
+		if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
+	}
+
+	config.Configuration.Save();
+}
+catch(Exception ex){
+	throw new Exception(ex.Message);
 }
 
-config.Configuration.Save();
 
 	
 
@@ -161,9 +194,12 @@ foreach(SQLConnectionData SData in SCD){
     server.ConnectionContext.Login = sqlLogin;
     server.ConnectionContext.Password = sqlPassword;
     server.ConnectionContext.Connect();
-	
-	GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
-
+	try{
+		GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
+	}
+	catch(Exception ex){
+		throw new Exception(ex.Message);
+	}
 
 
     foreach (Table table in server.Databases[sqlDatabase].Tables)
@@ -578,10 +614,10 @@ namespace <#= "GBAK" + ".Engine" #>
 				return false;
 			return true;
 		}
-		public static Guid ToGuid(string value)
-		{
-			return new Guid(value);
-		}
+		public static Guid ToGuid(object value)
+        {
+            return new Guid(Convert.ToString(value));
+        }
 		public static Guid Generate()
         {
             var buffer = Guid.NewGuid().ToByteArray();
