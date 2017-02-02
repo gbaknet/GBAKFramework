@@ -41,23 +41,52 @@ namespace <#= classNamespace #>
 #>
 		}
 <#+
+				int ResultItem=0;
 				foreach (SPResult Results in SPItem.Results)
                 {
+					
 #>
 		public class <#=item.Name#>_<#=Results.Name#>
 		{
 <#+
+					if(Results.Params.Count>0){
 					foreach (SPParam Param in Results.Params)
-					{
-						string pt = GetNetDataType(Param.Type);
-						pt += (pt=="string" | pt=="byte[]"?"":"?");
+						{
+							string pt = GetNetDataType(Param.Type);
+							pt += (pt=="string" | pt=="byte[]"?"":"?");
 #>
 			public <#=pt#> <#=Param.Name#>  { get; set; }
 <#+
+						}
+					}else{
+						System.Collections.Specialized.StringCollection sc = new System.Collections.Specialized.StringCollection();
+						string NULLparam = "";
+						for (int i = 0; i < item.Parameters.Count; i++)
+						{
+							NULLparam += ",NULL";
+						}
+						
+						sc.Add("SET FMTONLY ON");
+						sc.Add("EXEC " + item.Name + " " + NULLparam.Trim(',') + ";");
+						sc.Add("SET FMTONLY OFF");
+						System.Data.DataSet ds = server.Databases[SData.DBName].ExecuteWithResults(sc);
+						
+						foreach (System.Data.DataColumn item3 in ds.Tables[ResultItem].Columns)
+						{
+							string pt = GetDataType(item3.DataType.Name);
+							pt += (pt=="string" | pt=="byte[]"?"":"?");
+#>
+			public <#=pt#> <#=item3.ColumnName#>  { get; set; }
+<#+
+						}
+						
+					
 					}
+
 #>
 		}
 <#+
+					ResultItem++;
 				}
 #>
 	}

@@ -136,17 +136,22 @@ try
 					if (databasevalues.Name == "sp")
 					{
 						List<SPResult> ResultsData = new List<SPResult>();
-
-						foreach (System.Xml.XmlNode result in databasevalues)
+						if (databasevalues.Attributes["Result"]!=null && databasevalues.Attributes["Result"].Value!="")
 						{
-							if (result.Name != "Result") continue;
-							List<SPParam> ParamsData = new List<SPParam>();
-							foreach (System.Xml.XmlNode parameter in result)
+							ResultsData.Add(new SPResult() { Name = databasevalues.Attributes["Result"].Value });
+						}
+						else{
+							foreach (System.Xml.XmlNode result in databasevalues)
 							{
-								string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
-								ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+								if (result.Name != "Result") continue;
+								List<SPParam> ParamsData = new List<SPParam>();
+								foreach (System.Xml.XmlNode parameter in result)
+								{
+									string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
+									ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+								}
+								ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
 							}
-							ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
 						}
 						SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
 					}
@@ -159,7 +164,7 @@ try
 
 }
 catch(Exception ex){
-	throw new Exception(ex.Message);
+	
 }
 
 
@@ -173,7 +178,7 @@ try{
 	config.Configuration.Save();
 }
 catch(Exception ex){
-	throw new Exception(ex.Message);
+	
 }
 
 
@@ -198,7 +203,7 @@ foreach(SQLConnectionData SData in SCD){
 		GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
 	}
 	catch(Exception ex){
-		throw new Exception(ex.Message);
+		
 	}
 
 
@@ -769,7 +774,7 @@ namespace <#= "GBAK" + ".Engine" #>
 
 
         }
-        
+    
 	public static string ConvertObject(string DataType,string str,params object[] prm){
 		string DT = string.Format(str,prm);
 		string cnv = "";
@@ -793,6 +798,32 @@ namespace <#= "GBAK" + ".Engine" #>
 		else return cnv + "(" + DT + ")";
 		
 	}
+	
+	public static string GetDataType(string CDataTypeName){
+		
+		switch (CDataTypeName)
+        {
+			case "Int64":
+                return "long";
+			case "Int32":
+                return "int";
+			case "Int16":
+                return "short";
+			case "Byte":
+                return "byte";
+			case "Boolean":
+                return "bool";
+			case "Base64String":
+                return "byte[]";
+			case "String":
+                return "string";
+			case "Char":
+                return "char";
+			default:
+				return CDataTypeName;
+		}
+	}
+	
     public static string GetNetDataType(string sqlDataTypeName)
     {
         switch (sqlDataTypeName.ToLower())
