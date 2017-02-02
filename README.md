@@ -17,15 +17,15 @@ xml.TModel
 	  &lt;table name="TableName1" /&gt;
 	  &lt;table name="TableName2" /&gt;
 	  &lt;table name="TableName3" /&gt;
-	  &lt;!-- (For Automatic Cılumn Entry) For procedures that return a single table. --&gt;
+	  &lt;!-- (For Automatic Column Entry) For procedures that return a single table. --&gt;
 	  &lt;sp name="SPName1" Result="Result1" /&gt;
 	  &lt;sp name="SPName2" Result="Result1" /&gt;
-	  &lt;!-- (For Automatic Cılumn Entry) For procedures that return two or more tables. --&gt;
+	  &lt;!-- (For Automatic Column Entry) For procedures that return two or more tables. --&gt;
 	  &lt;sp name="SPName1"&gt;
 		&lt;Result name="Result1" /&gt;
 		&lt;Result name="Result2" /&gt;
 	  &lt;/sp&gt;
-	  &lt;!-- (For Manual Cılumn Entry) One or more stored procedure(s) list --&gt;
+	  &lt;!-- (For Manual Column Entry) One or more stored procedure(s) list --&gt;
 	  &lt;sp name="SPName1"&gt;
 		&lt;Result name="Result1"&gt;
 		  &lt;!-- Result parameter info (example. "SELECT Result1ParameterName1,Result1ParameterName2,Result1ParameterName3 FROM table;") --&gt;
