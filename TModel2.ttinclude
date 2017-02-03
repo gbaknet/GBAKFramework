@@ -70,16 +70,17 @@ namespace <#= classNamespace #>
 						sc.Add("EXEC " + item.Name + " " + NULLparam.Trim(',') + ";");
 						sc.Add("SET FMTONLY OFF");
 						System.Data.DataSet ds = server.Databases[SData.DBName].ExecuteWithResults(sc);
-						
+						List<SPParam> ParamsData = new List<SPParam>();
 						foreach (System.Data.DataColumn item3 in ds.Tables[ResultItem].Columns)
 						{
+							ParamsData.Add(new SPParam() { Name = item3.ColumnName, Type = GetDataType(item3.DataType.Name) });
 							string pt = GetDataType(item3.DataType.Name);
 							pt += (pt=="string" | pt=="byte[]"?"":"?");
 #>
 			public <#=pt#> <#=item3.ColumnName#>  { get; set; }
 <#+
 						}
-						
+						Results.Params = ParamsData;
 					
 					}
 

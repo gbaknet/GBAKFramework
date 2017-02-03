@@ -108,22 +108,42 @@ try
 			if(node.Name=="connections")
 			{
 				foreach (System.Xml.XmlNode connection in node)
-				{
-					if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
-					if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
-					if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
-					if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
+				{	
+					
 					if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
-					SCD.Add(new SQLConnectionData(){
-						Name = connection.Attributes["name"].Value,
-						ServerIP = connection.Attributes["Server"].Value,
-						DBName = connection.Attributes["Database"].Value,
-						User = connection.Attributes["UserID"].Value,
-						Password = connection.Attributes["Password"].Value
-					});
-					config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value) });
-					Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
-
+					if(connection.Attributes["FilePath"]!=null && connection.Attributes["FilePath"].Value!="")
+					{
+						string cnInstanceName = (connection.Attributes["InstanceName"]!=null && connection.Attributes["InstanceName"].Value!=""?@"\" + connection.Attributes["InstanceName"].Value:"");
+						string CnString = string.Format(@"App=GBAKFramework;Data Source=(LocalDB){1};Integrated Security=true;AttachDbFileName={0};MultipleActiveResultSets=True;",connection.Attributes["FilePath"].Value,cnInstanceName);
+						string nodeDBName = connection.Attributes["FilePath"].Value;
+						nodeDBName = nodeDBName.Substring(nodeDBName.LastIndexOf('\\')+1);
+						nodeDBName = nodeDBName.Substring(0,nodeDBName.LastIndexOf('.'));
+						SCD.Add(new SQLConnectionData(){
+							Name = connection.Attributes["name"].Value,
+							FilePath = connection.Attributes["FilePath"].Value,
+							ConnectionString = CnString,
+							DBName = nodeDBName
+						});
+						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString = CnString });
+						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+					}
+					else{
+						if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
+						if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
+						if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
+						if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
+						string CnString = string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value);
+						SCD.Add(new SQLConnectionData(){
+							Name = connection.Attributes["name"].Value,
+							ServerIP = connection.Attributes["Server"].Value,
+							DBName = connection.Attributes["Database"].Value,
+							User = connection.Attributes["UserID"].Value,
+							Password = connection.Attributes["Password"].Value,
+							ConnectionString = CnString
+						});
+						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=CnString });
+						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+					}
 				
 				}
 			}
@@ -182,7 +202,7 @@ catch(Exception ex){
 }
 
 
-	
+
 
 foreach(SQLConnectionData SData in SCD){
     string sqlServer = SData.ServerIP;
@@ -192,13 +212,21 @@ foreach(SQLConnectionData SData in SCD){
     string classNamespace = "GBAK" + "." + SData.Name;
     string destinationFolder = "";
  
+	//Microsoft.SqlServer.Management.Common.ServerConnection sc = new Microsoft.SqlServer.Management.Common.ServerConnection();
+	//sc.ConnectionString = SData.ConnectionString;
 
-
-	Server server = new Server(sqlServer);
-    server.ConnectionContext.LoginSecure = false;
-    server.ConnectionContext.Login = sqlLogin;
-    server.ConnectionContext.Password = sqlPassword;
+	Server server = new Server();
+    server.ConnectionContext.ConnectionString = SData.ConnectionString;
+	/*
+	if(SData.FilePath==""){
+		server.ConnectionContext.LoginSecure = false;
+		server.ConnectionContext.Login = sqlLogin;
+		server.ConnectionContext.Password = sqlPassword;
+	}
+	*/
     server.ConnectionContext.Connect();
+
+	
 	try{
 		GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
 	}
@@ -298,7 +326,7 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 					}
 					i++;
 					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
-					SETColumn += col.Name + "=\" + (values." + Temp1 + "==null?\"NULL\":\"{" + i.ToString() + "}\") + \"" + (i!=columnCount-1?",":"");
+					SETColumn += "[" + col.Name + "]=\" + (values." + Temp1 + "==null?\"NULL\":\"{" + i.ToString() + "}\") + \"" + (i!=columnCount-1?",":"");
 					SETColumnValue += ",values_" + Temp1;
 #>
 				object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
@@ -306,7 +334,7 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 				}
 #>
                 
-				d.ExecuteCommand("UPDATE <#=table.Name#> SET <#=SETColumn#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+				d.ExecuteCommand("UPDATE [<#=table.Name#>] SET <#=SETColumn#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
 <#
 
 #>
@@ -334,7 +362,7 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 					}
 					i++;
 					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
-					SETColumn += (i!=1?",":"") + col.Name;
+					SETColumn += (i!=1?",":"") + "[" + col.Name + "]";
 					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
 					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
 #>
@@ -349,7 +377,7 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 <#
 				}
 #>
-                d.ExecuteCommand("INSERT INTO <#=table.Name#> (<#=SETColumn#>)VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+                d.ExecuteCommand("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>)VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
 <#
 
 #>
@@ -382,7 +410,7 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 #>
                foreach (var item in values)
                 {
-                    d.ExecuteCommand("DELETE FROM <#=table.Name#> WHERE <#=SETPrimaryColumn#>={0}", item.<#=SETPrimaryColumnValue#>);
+                    d.ExecuteCommand("DELETE FROM [<#=table.Name#>] WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
                 } 
 				
 <#
@@ -868,7 +896,7 @@ namespace <#= "GBAK" + ".Engine" #>
                 return "Guid";
                  
             default:
-                return null;
+                return sqlDataTypeName;
         }
     }
  
@@ -888,6 +916,8 @@ namespace <#= "GBAK" + ".Engine" #>
 		public string DBName="";
 		public string Password="";
 		public string Name="";
+		public string FilePath="";
+		public string ConnectionString="";
 	}
 	public class Tables{
 		public string DBIdName = "";
