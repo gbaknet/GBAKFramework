@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <!-- 
+  For LocalDB
+  -->
+  <connections>
+    <connection name="MyLocalDBConnection" InstanceName="MSSQLLocalDB" FilePath="C:\Database1.mdf" />
+  </connections>
+  <!--
+    For SQLServer
+    <connections>
+      <connection name="MyConnection1" Server="127.0.0.1" Database="DatabaseName" UserID="UserName" Password="Password" />
+    </connections>
+    -->
+  <database name="MyLocalDBConnection">
+    <table name="Table" />
+    <sp name="get_table" Result="Result1" />
+  </database>
+</root>

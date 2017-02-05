@@ -1,0 +1,262 @@
+﻿<#@output extension=".txt"#>
+<#+
+	void GenerateSP(string DBId, Server server,string classNamespaceRoot, string classNamespace,SQLConnectionData SData,List<SPData> SPList,ref TemplateFileManager manager){
+	
+		try
+        {
+			foreach (StoredProcedure item in server.Databases[SData.DBName].StoredProcedures)
+            {
+                var SPItem = SPList.Where(z => (z.Name == item.Name) && (z.DBIdName == DBId)).FirstOrDefault();
+                if (SPItem==null) continue;
+                
+                
+                
+
+            
+				manager.StartNewFile(DBId + "_SP_" + item.Name + ".cs");      
+#>
+using System;
+using System.Collections.Generic;
+namespace <#= classNamespace #>
+{
+	public partial class SP
+	{
+		public class <#=item.Name#>
+		{
+<#+
+				foreach(SPResult Result in SPItem.Results)
+				{
+#>
+			public IList<<#=item.Name#>_<#=Result.Name#>> <#=Result.Name#> { get; set; }
+<#+
+				}
+
+				foreach (StoredProcedureParameter prm in item.Parameters)
+                {
+				string pt = GetNetDataType(prm.DataType.Name);
+#>
+			//public <#=pt + (pt=="string" | pt=="byte[]"?"":"?")#> <#=prm.Name.Substring(1)#>  { get; set; }<#=(string.IsNullOrEmpty(prm.DefaultValue)?"":" = " + prm.DefaultValue + ";")#>
+<#+
+                }			
+#>
+		}
+<#+
+				int ResultItem=0;
+				foreach (SPResult Results in SPItem.Results)
+                {
+					
+#>
+		public class <#=item.Name#>_<#=Results.Name#>
+		{
+<#+
+					if(Results.Params.Count>0){
+					foreach (SPParam Param in Results.Params)
+						{
+							string pt = GetNetDataType(Param.Type);
+							pt += (pt=="string" | pt=="byte[]"?"":"?");
+#>
+			public <#=pt#> <#=Param.Name#>  { get; set; }
+<#+
+						}
+					}else{
+						System.Collections.Specialized.StringCollection sc = new System.Collections.Specialized.StringCollection();
+						string NULLparam = "";
+						for (int i = 0; i < item.Parameters.Count; i++)
+						{
+							NULLparam += ",NULL";
+						}
+						
+						sc.Add("SET FMTONLY ON");
+						sc.Add("EXEC " + item.Name + " " + NULLparam.Trim(',') + ";");
+						sc.Add("SET FMTONLY OFF");
+						System.Data.DataSet ds = server.Databases[SData.DBName].ExecuteWithResults(sc);
+						List<SPParam> ParamsData = new List<SPParam>();
+						foreach (System.Data.DataColumn item3 in ds.Tables[ResultItem].Columns)
+						{
+							ParamsData.Add(new SPParam() { Name = item3.ColumnName, Type = GetDataType(item3.DataType.Name) });
+							string pt = GetDataType(item3.DataType.Name);
+							pt += (pt=="string" | pt=="byte[]"?"":"?");
+#>
+			public <#=pt#> <#=item3.ColumnName#>  { get; set; }
+<#+
+						}
+						Results.Params = ParamsData;
+					
+					}
+
+#>
+		}
+<#+
+					ResultItem++;
+				}
+#>
+	}
+
+}
+<#+
+			}
+			manager.StartNewFile(DBId + "_SP.cs");
+#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Collections.Generic;
+namespace <#=classNamespace#>
+{
+	public partial class SP{
+		public class EXEC: IDisposable
+		{
+			//DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=DBId#>);
+			public EXEC(){
+				//d.CommandTimeout = <#=DBId#>.Tables.CommandTimeout;
+			}
+			public void Dispose()
+			{
+				//d.Dispose();
+			}
+<#+
+			foreach (StoredProcedure item in server.Databases[SData.DBName].StoredProcedures)
+            {
+                var SPItem = SPList.Where(z => z.Name == item.Name).FirstOrDefault();
+                if (SPItem==null) continue;
+				string prmData = "";
+				foreach (StoredProcedureParameter prm in item.Parameters)
+                {
+					string pt = GetNetDataType(prm.DataType.Name);
+					prmData += "," + pt + (pt=="string" | pt=="byte[]"?"":"?") + " " + prm.Name.Substring(1) + (string.IsNullOrEmpty(prm.DefaultValue)?"":" = " + prm.DefaultValue);
+                }
+				if(prmData!="") prmData = prmData.Substring(1);
+#>
+			public SP.<#=item.Name#> <#=item.Name#>(<#=prmData#>)
+			{
+				System.Data.SqlClient.SqlParameter[] param = new System.Data.SqlClient.SqlParameter[0];
+                int i2 = 0;
+<#+
+				foreach (StoredProcedureParameter prm in item.Parameters)
+                {
+#>
+                if ((<#=prm.Name.Substring(1)#>) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("<#=prm.Name#>", <#=prm.Name.Substring(1)#>.ToString()); i2 = i2 + 1; }
+<#+
+				}
+#>
+				System.Data.DataSet ds = Engine.ExecutionModel.Exec("<#=item.Name#>", param);
+				SP.<#=item.Name#> temp = new SP.<#=item.Name#>();
+<#+
+				int t_i=0;
+				foreach (SPResult Result in SPItem.Results)
+				{
+#>
+				List<SP.<#=SPItem.Name + "_" + Result.Name#>> <#=SPItem.Name + "_" + Result.Name#> = new List<SP.<#=SPItem.Name + "_" + Result.Name#>>();
+				for (int i = 0; i < ds.Tables[<#=t_i#>].Rows.Count; i++)
+				{
+					<#=SPItem.Name + "_" + Result.Name#>.Add(new SP.<#=SPItem.Name + "_" + Result.Name#>
+					{
+<#+
+					foreach(SPParam Param in Result.Params)
+					{
+						
+						string pt =  GetNetDataType(Param.Type);
+						string pt2 = pt + (pt=="string" | pt=="byte[]"?"":"?");
+						
+#>
+						<#=Param.Name#> = (ds.Tables[<#=t_i#>].Rows[i]["<#=Param.Name#>"] is DBNull ? null : (<#=pt2#>)<#=ConvertObject(pt,"ds.Tables[{0}].Rows[i][\"{1}\"]",t_i,Param.Name)#>),
+<#+
+					}
+#>
+					});
+				}
+				temp.<#=Result.Name#> = <#=SPItem.Name + "_" + Result.Name#>;
+<#+
+					t_i++;
+				}
+#>
+				return temp;
+			}
+<#+
+			}
+#>
+		}
+	}
+}
+<#+
+						manager.StartNewFile(DBId + "_Engine_SP.cs");
+#>
+using System;
+using System.Data.Linq;
+using System.Data.SqlClient;
+namespace <#=classNamespace#>.Engine
+{
+	internal static class ExecutionModel
+	{
+		public static System.Data.DataSet Exec(string CommandText, System.Data.SqlClient.SqlParameter[] values)
+        {
+            System.Data.DataSet result = new System.Data.DataSet();
+            try
+            {
+                    
+                using (SqlConnection dc = new SqlConnection(GBAK.Engine.PublicVariable.Connection_<#=DBId#>))
+                {
+					SqlCommand cmdUn = dc.CreateCommand();
+					cmdUn.CommandText = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;";
+                    SqlCommand cmd = dc.CreateCommand();
+                    cmd.CommandText = CommandText;
+                    cmd.CommandType = System.Data.CommandType.StoredProcedure;
+                    if (values.Length != 0)
+                    {
+                        if (values != null)
+                        {
+                            foreach (SqlParameter param in values)
+                            {
+                                if (param.Value == null)
+                                {
+                                    param.Value = DBNull.Value;
+                                }
+                                else
+                                {
+                                    if (param.Value is string)
+                                    {
+                                        param.Value = param.Value.ToString().Replace("'", "''");
+                                    }
+                                }
+                                cmd.Parameters.Add(param);
+                            }
+                        }
+                    }
+                    SqlDataAdapter da = new SqlDataAdapter();
+                    da.SelectCommand = (SqlCommand)cmd;
+                    dc.Open();
+					cmdUn.ExecuteNonQuery();
+                    da.Fill(result);
+                    dc.Close();
+                    dc.Dispose();
+                    da = null;
+                    return result;
+                }
+                    
+                
+                
+            }
+            catch (Exception ex)
+            {
+                throw new Exception(ex.Message);
+            }
+            return null;
+
+
+        }
+	}
+}
+<#+
+		}
+        catch (Exception)
+        {
+
+            
+        }
+	
+	}
+		
+	
+
+	
+#>
