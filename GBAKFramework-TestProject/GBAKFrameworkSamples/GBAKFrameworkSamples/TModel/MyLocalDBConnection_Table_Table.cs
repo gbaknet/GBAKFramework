@@ -22,5 +22,30 @@ namespace GBAK.MyLocalDBConnection
 			[Column(Name = "female")]
 			public bool? female { get; set; } = null;
 		}
+		[Table(Name = "Table")]
+		public class TableAfterTrigger_Table
+		{
+			[Column(Name = "Inserted_Id")]
+			public int Inserted_Id { get; set; }
+			[Column(Name = "Deleted_Id")]
+			public int Deleted_Id { get; set; }
+			[Column(Name = "Inserted_name")]
+			public string Inserted_name { get; set; }
+			[Column(Name = "Deleted_name")]
+			public string Deleted_name { get; set; }
+			[Column(Name = "Inserted_surname")]
+			public string Inserted_surname { get; set; }
+			[Column(Name = "Deleted_surname")]
+			public string Deleted_surname { get; set; }
+			[Column(Name = "Inserted_age")]
+			public byte? Inserted_age { get; set; }
+			[Column(Name = "Deleted_age")]
+			public byte? Deleted_age { get; set; }
+			[Column(Name = "Inserted_female")]
+			public bool? Inserted_female { get; set; }
+			[Column(Name = "Deleted_female")]
+			public bool? Deleted_female { get; set; }
+	
+		}
 	}
 }    

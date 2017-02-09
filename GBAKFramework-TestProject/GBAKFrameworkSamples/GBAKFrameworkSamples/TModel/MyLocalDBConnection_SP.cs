@@ -20,7 +20,7 @@ namespace GBAK.MyLocalDBConnection
 			{
 				System.Data.SqlClient.SqlParameter[] param = new System.Data.SqlClient.SqlParameter[0];
                 int i2 = 0;
-                if ((param1) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("@param1", param1.ToString()); i2 = i2 + 1; }
+                if ((param1) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("@param1", param1); i2 = i2 + 1; }
 				System.Data.DataSet ds = Engine.ExecutionModel.Exec("get_table", param);
 				SP.get_table temp = new SP.get_table();
 				List<SP.get_table_Result1> get_table_Result1 = new List<SP.get_table_Result1>();

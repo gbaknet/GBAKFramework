@@ -80,6 +80,9 @@
     <Compile Include="TModel\MyLocalDBConnection_Engine_Table_Table.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="TModel\MyLocalDBConnection_Engine_Triggers.cs">
+      <DependentUpon>TModel.tt</DependentUpon>
+    </Compile>
     <Compile Include="TModel\MyLocalDBConnection_Select.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
@@ -95,12 +98,17 @@
     <Compile Include="TModel\MyLocalDBConnection_Table_Table.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="TModel\MyLocalDBConnection_Triggers.cs">
+      <DependentUpon>TModel.tt</DependentUpon>
+    </Compile>
     <Compile Include="TModel\PublicVariable.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="App.config" />
+    <None Include="App.config">
+      <SubType>Designer</SubType>
+    </None>
     <None Include="packages.config" />
     <None Include="TModel\TModel2.ttinclude" />
     <None Include="TModel\TModel3.ttinclude" />

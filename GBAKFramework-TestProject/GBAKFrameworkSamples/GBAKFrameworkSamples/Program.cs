@@ -11,6 +11,10 @@ namespace GBAKFrameworkSamples
         static void Main(string[] args)
         {
 
+            GBAK.MyLocalDBConnection.Triggers.AfterAdd("Name1", GBAK.MyLocalDBConnection.Tables.Name.Table, delegate (GBAK.MyLocalDBConnection.Tables.TableAfterTrigger_Table tbl) { Console.WriteLine("After Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.Inserted_name,tbl.Inserted_surname, tbl.Inserted_age, tbl.Inserted_female, tbl.Inserted_Id); }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
+
+
+            GBAK.MyLocalDBConnection.Triggers.InsteadAdd("Name2", GBAK.MyLocalDBConnection.Tables.Name.Table, delegate (GBAK.MyLocalDBConnection.Tables.Table tbl) { Console.WriteLine("Instead Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.name, tbl.surname, tbl.age, tbl.female, tbl.Id); return true; }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
 
             while (true)
             {
@@ -34,7 +38,7 @@ namespace GBAKFrameworkSamples
                     var tbl = SELECT.Table();
                     foreach (var item in tbl)
                     {
-                        Console.WriteLine(string.Format("ID: {0} - Name: {1} - Surname: {2} - Age: {3} - Sex: {4}", item.Id, item.name, item.surname, item.age, ((bool)item.female ? "Female" : "Male")));
+                        Console.WriteLine(string.Format("FE> ID: {0} - Name: {1} - Surname: {2} - Age: {3} - Sex: {4}", item.Id, item.name, item.surname, item.age, ((bool)item.female ? "Female" : "Male")));
                     }
                     Console.Write("Would you like to delete this recording? (yes/no):> ");
                     if (Console.ReadLine() == "yes")

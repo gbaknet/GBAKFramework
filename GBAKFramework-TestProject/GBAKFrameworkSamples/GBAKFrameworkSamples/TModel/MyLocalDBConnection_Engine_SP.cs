@@ -33,7 +33,8 @@ namespace GBAK.MyLocalDBConnection.Engine
                                 {
                                     if (param.Value is string)
                                     {
-                                        param.Value = param.Value.ToString().Replace("'", "''");
+										if (param.Value.GetType().Name=="String")
+											param.Value = param.Value.ToString().Replace("'", "''");
                                     }
                                 }
                                 cmd.Parameters.Add(param);

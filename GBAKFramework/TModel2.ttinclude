@@ -135,7 +135,7 @@ namespace <#=classNamespace#>
 				foreach (StoredProcedureParameter prm in item.Parameters)
                 {
 #>
-                if ((<#=prm.Name.Substring(1)#>) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("<#=prm.Name#>", <#=prm.Name.Substring(1)#>.ToString()); i2 = i2 + 1; }
+                if ((<#=prm.Name.Substring(1)#>) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("<#=prm.Name#>", <#=prm.Name.Substring(1)#>); i2 = i2 + 1; }
 <#+
 				}
 #>
@@ -215,7 +215,8 @@ namespace <#=classNamespace#>.Engine
                                 {
                                     if (param.Value is string)
                                     {
-                                        param.Value = param.Value.ToString().Replace("'", "''");
+										if (param.Value.GetType().Name=="String")
+											param.Value = param.Value.ToString().Replace("'", "''");
                                     }
                                 }
                                 cmd.Parameters.Add(param);

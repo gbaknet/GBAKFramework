@@ -258,7 +258,6 @@ namespace <#= classNamespace #>
 			int columnCount = table.Columns.Count;
 			int i = 0;
  
-		
 			foreach (Column col in table.Columns)
 			{
 				i++;
@@ -270,11 +269,12 @@ namespace <#= classNamespace #>
 				}
  
 				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
-
+				
 				if (col.Nullable && propertyType != "string")
 				{
 					propertyType += "?";
 				}
+				
 			
 #>
 			[Column(Name = "<#=col.Name#>")]
@@ -291,6 +291,39 @@ namespace <#= classNamespace #>
 			}
 		
 #>
+		}
+		[Table(Name = "<#= table.Name #>")]
+		public class TableAfterTrigger_<#= table.Name #>
+		{
+<# 
+			i = 0;
+ 
+			foreach (Column col in table.Columns)
+			{
+				i++;
+				string propertyType = GetNetDataType(col.DataType.Name);
+ 
+				if (string.IsNullOrWhiteSpace(propertyType))
+				{
+					continue;
+				}
+ 
+				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
+				
+				if (col.Nullable && propertyType != "string")
+				{
+					propertyType += "?";
+				}
+				
+			
+#>
+			[Column(Name = "Inserted_<#=col.Name#>")]
+			public <#= propertyType #> Inserted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+			[Column(Name = "Deleted_<#=col.Name#>")]
+			public <#= propertyType #> Deleted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+<#
+				}
+#>	
 		}
 	}
 }    
@@ -334,14 +367,39 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 				}
 #>
                 
-				d.ExecuteCommand("UPDATE [<#=table.Name#>] SET <#=SETColumn#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+				foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerUpdate_<#=table.Name#>)
+				{
+					if(!item(values)) return false;
+				}
+				
+				System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("UPDATE [<#=table.Name#>] SET <#=SETColumn#> OUTPUT <#=OutputTableClause(table.Name,table.Columns,1)#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+				foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerUpdate_<#=table.Name#>)
+                {
+                    item(OutputResult.FirstOrDefault());
+                }
 <#
 
 #>
             }
             return true;
         }
-		public static GBAK.Error Add(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
+<#
+				string PrimaryKeyColumnName = "";
+				string PrimaryKeyColumnType = "";
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						PrimaryKeyColumnName = (col.Name==table.Name?col.Name + "1":col.Name);
+						PrimaryKeyColumnType = GetNetDataType(col.DataType.Name);
+						if (PrimaryKeyColumnType != "string")
+						{
+							PrimaryKeyColumnType += "?";
+						}
+						continue;
+					}
+				}
+#>
+		public static GBAK.Error Add(out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>,GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
 <#
 			SETColumn = "";
 			SETColumnValue = "";
@@ -349,12 +407,13 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 			Temp1 = "";
 #>
 			GBAK.Error e = new GBAK.Error();
+			<#=PrimaryKeyColumnName#> = null;
             using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
             {
 <#
 				
 				i = 0;
-
+				
 				foreach (Column col in table.Columns)
 				{
 					if(col.InPrimaryKey){
@@ -377,7 +436,18 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 <#
 				}
 #>
-                d.ExecuteCommand("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>)VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+				foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
+				{
+					if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
+				}
+					
+				System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+				var OutputResultData = OutputResult.FirstOrDefault();
+				<#=PrimaryKeyColumnName#> = OutputResultData.Inserted_<#=PrimaryKeyColumnName#>;
+				foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
+                {
+                    item(OutputResultData);
+                }
 <#
 
 #>
@@ -408,9 +478,23 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 <#
 				}
 #>
+			   foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerDelete_<#=table.Name#>)
+				{
+					foreach (var item in values)
+					{
+						if(!item2(item)) return false;
+					}
+				}
                foreach (var item in values)
                 {
-                    d.ExecuteCommand("DELETE FROM [<#=table.Name#>] WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
+					
+					
+					System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("DELETE FROM [<#=table.Name#>] OUTPUT <#=OutputTableClause(table.Name,table.Columns,2)#> WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
+					
+					foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerDelete_<#=table.Name#>)
+					{
+						item2(OutputResult.FirstOrDefault());
+					}
                 } 
 				
 <#
@@ -424,6 +508,107 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 <#
     }
 #>
+<#manager.StartNewFile(SData.Name + "_Engine_Triggers.cs");#>
+using System;
+using System.Collections.Generic;
+using System.Data.Linq;
+using System.Data.SqlClient;
+namespace GBAK.<#=SData.Name#>.Engine
+{
+	internal static class Triggers<T>
+	{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+		public static List<Action<T>> TriggerInsert_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+		public static List<Action<T>> TriggerUpdate_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+		public static List<Action<T>> TriggerDelete_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerInsert_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerUpdate_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerDelete_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+<#
+		}
+#>
+	}
+}
+
+<#manager.StartNewFile(SData.Name + "_Triggers.cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+namespace GBAK.<#=SData.Name#>
+{
+	public static class Triggers
+	{
+		public static void AfterAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, Action<T> MethodOrDelegate, params TriggerType[] TriggerType)
+		{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+			if (TableName.ToString() == "<#=table.Name#>")
+            {
+				foreach (TriggerType item in TriggerType)
+                {
+                    if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+                }
+            }
+<#
+		}
+#>
+		}
+		public static void InsteadAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, GBAK.Engine.ActionWithResultBoolean<T> MethodOrDelegate, params TriggerType[] TriggerType)
+		{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+			if (TableName.ToString() == "<#=table.Name#>")
+            {
+				foreach (TriggerType item in TriggerType)
+                {
+                    if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+                }
+            }
+<#
+		}
+#>
+		}
+		public enum TriggerType
+		{
+			Update,
+			Insert,
+			Delete
+		}
+	}
+}
 <#manager.StartNewFile("BaseAndExtensions_" + SData.Name + ".cs");#>
 using System;
 using System.Linq;
@@ -509,10 +694,30 @@ namespace <#= "GBAK" + "." + SData.Name #>
 			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 				continue;
 			}
+			
+			string PrimaryKeyColumnName = "";
+			string PrimaryKeyColumnType = "";
+			foreach (Column col in table.Columns)
+			{
+				if(col.InPrimaryKey){
+					PrimaryKeyColumnName = (col.Name==table.Name?col.Name + "1":col.Name);
+					PrimaryKeyColumnType = GetNetDataType(col.DataType.Name);
+					if (PrimaryKeyColumnType != "string")
+					{
+						PrimaryKeyColumnType += "?";
+					}
+					continue;
+				}
+			}
 #>
-        public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
+        public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values, out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>)
         {
-			return Engine.Table_<#=table.Name#>.Add(values);
+			return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
+        }
+		public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
+        {
+			<#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#> = null;
+			return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
         }
 <#
 		}
@@ -526,6 +731,23 @@ namespace <#= "GBAK" + "." + SData.Name #>
 	public partial class Tables
     {
         public static int CommandTimeout { get; set; } = 30;
+		public enum Name
+        {
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+							continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+							continue;
+			}
+			WriteLine("            " + table.Name + ",");
+		}
+#>      
+			
+        }
     }
 }
 <#manager.StartNewFile(SData.Name + "_Select.cs");#>
@@ -613,6 +835,7 @@ using System;
 using System.Linq;
 namespace <#= "GBAK" + ".Engine" #>
 {
+	public delegate bool ActionWithResultBoolean<in T>(T obj);
     public static class HelperMethods
     {
 		public static TValue GetAttributeValue<TAttribute, TValue>(
@@ -899,7 +1122,33 @@ namespace <#= "GBAK" + ".Engine" #>
                 return sqlDataTypeName;
         }
     }
- 
+	
+	//IUD>0=INSERT / 1=UPDATE / 2=DELETE
+	string OutputTableClause(string tableName, Microsoft.SqlServer.Management.Smo.ColumnCollection tableCols,Int16 IUD){
+		string ColumnNames = "";
+		if (IUD==1){
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",INSERTED.{0} AS Inserted_{0},DELETED.{0} AS Deleted_{0}",col.Name);
+			}
+		}
+		else if (IUD==0)
+		{
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",INSERTED.{0} AS Inserted_{0}",col.Name);
+			}
+		}
+		else if (IUD==2)
+		{
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",DELETED.{0} AS Deleted_{0}",col.Name);
+			}
+		}
+		if (ColumnNames!="") ColumnNames = ColumnNames.Trim(',');
+		return ColumnNames;
+	}
     void SaveOutput(string outputFileName, string destinationFolder)
     {
         string templateDirectory = Path.Combine(Path.GetDirectoryName(Host.TemplateFile), destinationFolder);

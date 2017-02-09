@@ -14,6 +14,7 @@ using System;
 using System.Linq;
 namespace GBAK.Engine
 {
+	public delegate bool ActionWithResultBoolean<in T>(T obj);
     public static class HelperMethods
     {
 		public static TValue GetAttributeValue<TAttribute, TValue>(
