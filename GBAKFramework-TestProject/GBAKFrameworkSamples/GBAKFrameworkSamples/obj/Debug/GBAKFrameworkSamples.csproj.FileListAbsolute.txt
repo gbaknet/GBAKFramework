@@ -1,0 +1,6 @@
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\bin\Debug\GBAKFrameworkSamples.exe.config
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\bin\Debug\GBAKFrameworkSamples.exe
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\bin\Debug\GBAKFrameworkSamples.pdb
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\obj\Debug\GBAKFrameworkSamples.csprojResolveAssemblyReference.cache
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\obj\Debug\GBAKFrameworkSamples.exe
+C:\Users\Administrator\Desktop\GD\vurssAppServer\BosService\GBAKFramework-master\Samples\GBAKFrameworkSamples\GBAKFrameworkSamples\obj\Debug\GBAKFrameworkSamples.pdb
