@@ -9,25 +9,43 @@ namespace GBAK.MyLocalDBConnection
 	{
 		public static void AfterAdd<T>(string Name, GBAK.MyLocalDBConnection.Tables.Name TableName, Action<T> MethodOrDelegate, params TriggerType[] TriggerType)
 		{
-			if (TableName.ToString() == "Table")
+			if (TableName.ToString() == "People")
             {
 				foreach (TriggerType item in TriggerType)
                 {
-                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerInsert_Table.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerDelete_Table.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerUpdate_Table.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerInsert_People.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerDelete_People.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerUpdate_People.Add(MethodOrDelegate);
+                }
+            }
+			if (TableName.ToString() == "PeopleProperties")
+            {
+				foreach (TriggerType item in TriggerType)
+                {
+                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerInsert_PeopleProperties.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerDelete_PeopleProperties.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.TriggerUpdate_PeopleProperties.Add(MethodOrDelegate);
                 }
             }
 		}
 		public static void InsteadAdd<T>(string Name, GBAK.MyLocalDBConnection.Tables.Name TableName, GBAK.Engine.ActionWithResultBoolean<T> MethodOrDelegate, params TriggerType[] TriggerType)
 		{
-			if (TableName.ToString() == "Table")
+			if (TableName.ToString() == "People")
             {
 				foreach (TriggerType item in TriggerType)
                 {
-                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerInsert_Table.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerDelete_Table.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerUpdate_Table.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerInsert_People.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerDelete_People.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerUpdate_People.Add(MethodOrDelegate);
+                }
+            }
+			if (TableName.ToString() == "PeopleProperties")
+            {
+				foreach (TriggerType item in TriggerType)
+                {
+                    if (item == Triggers.TriggerType.Insert) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerInsert_PeopleProperties.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Delete) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerDelete_PeopleProperties.Add(MethodOrDelegate);
+                    if (item == Triggers.TriggerType.Update) GBAK.MyLocalDBConnection.Engine.Triggers<T>.InsteadTriggerUpdate_PeopleProperties.Add(MethodOrDelegate);
                 }
             }
 		}

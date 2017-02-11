@@ -13,7 +13,8 @@
     </connections>
     -->
   <database name="MyLocalDBConnection">
-    <table name="Table" />
+    <table name="People" />
+    <table name="PeopleProperties" />
     <sp name="get_table" Result="Result1" />
   </database>
 </root>

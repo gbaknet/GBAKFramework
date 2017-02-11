@@ -1,5 +1,6 @@
 ﻿//GBAKFramework open source database processing
 using System;
+using System.Linq;
 using System.Data.Linq;
 namespace GBAK.MyLocalDBConnection
 {
@@ -15,9 +16,13 @@ namespace GBAK.MyLocalDBConnection
 			{
 				d.Dispose();
 			}
-			public Table<MyLocalDBConnection.Tables.Table> Table()
+			public IQueryable<MyLocalDBConnection.Tables.People> People()
 			{
-				return d.GetTable<MyLocalDBConnection.Tables.Table>();
+				return d.GetTable<MyLocalDBConnection.Tables.People>();
+			}
+			public IQueryable<MyLocalDBConnection.Tables.PeopleProperties> PeopleProperties()
+			{
+				return d.GetTable<MyLocalDBConnection.Tables.PeopleProperties>();
 			}
 		}
 	}

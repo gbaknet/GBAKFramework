@@ -11,10 +11,10 @@ namespace GBAKFrameworkSamples
         static void Main(string[] args)
         {
 
-            GBAK.MyLocalDBConnection.Triggers.AfterAdd("Name1", GBAK.MyLocalDBConnection.Tables.Name.Table, delegate (GBAK.MyLocalDBConnection.Tables.TableAfterTrigger_Table tbl) { Console.WriteLine("After Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.Inserted_name,tbl.Inserted_surname, tbl.Inserted_age, tbl.Inserted_female, tbl.Inserted_Id); }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
+            GBAK.MyLocalDBConnection.Triggers.AfterAdd("Name1", GBAK.MyLocalDBConnection.Tables.Name.People, delegate (GBAK.MyLocalDBConnection.Tables.TableAfterTrigger_People tbl) { Console.WriteLine("After Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.Inserted_name,tbl.Inserted_surname, tbl.Inserted_age, tbl.Inserted_female, tbl.Inserted_Id); }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
 
 
-            GBAK.MyLocalDBConnection.Triggers.InsteadAdd("Name2", GBAK.MyLocalDBConnection.Tables.Name.Table, delegate (GBAK.MyLocalDBConnection.Tables.Table tbl) { Console.WriteLine("Instead Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.name, tbl.surname, tbl.age, tbl.female, tbl.Id); return true; }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
+            GBAK.MyLocalDBConnection.Triggers.InsteadAdd("Name2", GBAK.MyLocalDBConnection.Tables.Name.People, delegate (GBAK.MyLocalDBConnection.Tables.People tbl) { Console.WriteLine("Instead Trigger> ID {4} - Name: {0} - Surname: {1} - Age: {2} - Female: {3}", tbl.name, tbl.surname, tbl.age, tbl.female, tbl.Id); return true; }, GBAK.MyLocalDBConnection.Triggers.TriggerType.Insert);
 
             while (true)
             {
@@ -22,20 +22,22 @@ namespace GBAKFrameworkSamples
 
                 using (var SELECT = new GBAK.MyLocalDBConnection.Tables.SELECT())
                 {
-                    if (SELECT.Table().Count() == 0)
+                    if (SELECT.People().Count() == 0)
                     {
                         Random r = new Random();
 
-                        GBAK.MyLocalDBConnection.Tables.Add(new GBAK.MyLocalDBConnection.Tables.Table() { age = (byte)r.Next(18, 60), female = (r.Next(0, 2) == 1 ? false : true), name = "Lorem", surname = "Ipsum" });
+                        GBAK.MyLocalDBConnection.Tables.Add(new GBAK.MyLocalDBConnection.Tables.People() { age = (byte)r.Next(18, 60), female = (r.Next(0, 2) == 1 ? false : true), name = "Lorem", surname = "Ipsum" });
                     }
 
 
 
                 }
 
+
+                
                 using (var SELECT = new GBAK.MyLocalDBConnection.Tables.SELECT())
                 {
-                    var tbl = SELECT.Table();
+                    var tbl = SELECT.People();
                     foreach (var item in tbl)
                     {
                         Console.WriteLine(string.Format("FE> ID: {0} - Name: {1} - Surname: {2} - Age: {3} - Sex: {4}", item.Id, item.name, item.surname, item.age, ((bool)item.female ? "Female" : "Male")));
@@ -64,6 +66,9 @@ namespace GBAKFrameworkSamples
                         Console.WriteLine("Record not found.");
                     }
                 }
+
+
+
                 Console.WriteLine("Click to continue.");
                 Console.ReadLine();
             }

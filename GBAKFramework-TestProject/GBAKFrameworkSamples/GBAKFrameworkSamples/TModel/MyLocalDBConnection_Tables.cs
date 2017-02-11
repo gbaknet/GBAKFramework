@@ -7,7 +7,8 @@ namespace GBAK.MyLocalDBConnection
         public static int CommandTimeout { get; set; } = 30;
 		public enum Name
         {
-            Table,
+            People,
+            PeopleProperties,
       
 			
         }

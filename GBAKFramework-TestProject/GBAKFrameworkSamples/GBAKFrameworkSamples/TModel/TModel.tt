@@ -16,6 +16,7 @@
 <#@ include file="TModel4.ttinclude" #>
 <#@ include file="TModel3.ttinclude" #>
 <#@ include file="TModel2.ttinclude" #>
+<#@ include file="TModel5.ttinclude" #>
 <#var manager = TemplateFileManager.Create(this);#>
 <#
 EnvDTE.Project p = this.FindProject();
@@ -95,7 +96,8 @@ System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
 List<string> Ineffaceable = new List<string>();
 List<Tables> TableList = new List<Tables>();
 List<SPData> SPList = new List<SPData>();
-
+List<Relation> Relations = new List<Relation>();
+            
 try
 {
 
@@ -233,6 +235,12 @@ foreach(SQLConnectionData SData in SCD){
 	catch(Exception ex){
 		
 	}
+	try{
+		Relations = RelationsMapping(SData.Name,sqlDatabase,server);
+	}
+	catch(Exception ex){
+		
+	}
 
 
     foreach (Table table in server.Databases[sqlDatabase].Tables)
@@ -247,16 +255,18 @@ foreach(SQLConnectionData SData in SCD){
 #>
 <#manager.StartNewFile(SData.Name + "_Table_" + table.Name + ".cs");#>
 using System;
+using System.Linq;
 using System.Data.Linq.Mapping;
 namespace <#= classNamespace #>
 {
 	public partial class Tables{
 		[Table(Name = "<#= table.Name #>")]
-		public class <#= table.Name #>: BS
+		public class <#=table.Name#>: BS
 		{
 <# 
 			int columnCount = table.Columns.Count;
 			int i = 0;
+			string RelationIntializerColumns = "";
  
 			foreach (Column col in table.Columns)
 			{
@@ -274,11 +284,11 @@ namespace <#= classNamespace #>
 				{
 					propertyType += "?";
 				}
-				
-			
+				string ColNetName = (col.Name==table.Name?col.Name + "1":col.Name);
+				RelationIntializerColumns += "\r\n                k." + ColNetName + " = " + ColNetName + ";";
 #>
 			[Column(Name = "<#=col.Name#>")]
-			public <#= propertyType #> <#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
+			public <#= propertyType #> <#=ColNetName#> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
 <#
 				if (i != columnCount)
 				{
@@ -289,8 +299,51 @@ namespace <#= classNamespace #>
 #>
 <#
 			}
-		
 #>
+			public Relation Relations()
+            {
+                <#=table.Name#> k = new <#=table.Name#>();
+                <#=RelationIntializerColumns#>
+                return new Relation(ref k);
+            }
+            public class Relation : IDisposable
+            {
+                <#=table.Name#> k = new <#=table.Name#>();
+                SELECT N = new SELECT();
+                public Relation(ref <#=table.Name#> k)
+                {
+                    this.k = k;
+                }
+                public void Dispose()
+                {
+                    N.Dispose();
+                }
+<#
+				foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.ParentTable==table.Name)))
+				{
+					if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.Table).FirstOrDefault()==null) continue;
+#>
+				public IQueryable<Tables.<#=RelItem1.Table#>> <#=RelItem1.Table#>()
+                {
+                    return N.<#=RelItem1.Table#>().Where(z => z.<#=RelItem1.Column#> == k.<#=RelItem1.ParentColumn#>);
+                }
+<#
+				}
+#>
+<#
+				foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.Table==table.Name)))
+				{
+					if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.ParentTable).FirstOrDefault()==null) continue;
+#>
+				public IQueryable<Tables.<#=RelItem1.ParentTable#>> <#=RelItem1.ParentTable#>()
+                {
+                    return N.<#=RelItem1.ParentTable#>().Where(z => z.<#=RelItem1.ParentColumn#> == k.<#=RelItem1.Column#>);
+                }
+<#
+				}
+#>
+                
+            }
 		}
 		[Table(Name = "<#= table.Name #>")]
 		public class TableAfterTrigger_<#= table.Name #>
@@ -752,6 +805,7 @@ namespace <#= "GBAK" + "." + SData.Name #>
 }
 <#manager.StartNewFile(SData.Name + "_Select.cs");#>
 using System;
+using System.Linq;
 using System.Data.Linq;
 namespace <#= "GBAK" + "." + SData.Name #>
 {
@@ -778,7 +832,7 @@ namespace <#= "GBAK" + "." + SData.Name #>
 				continue;
 			}
 #>
-			public Table<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
+			public IQueryable<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
 			{
 				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
 			}
@@ -789,6 +843,7 @@ namespace <#= "GBAK" + "." + SData.Name #>
 	}
 }
 <# 
+	server.ConnectionContext.Disconnect();
 }	
 #>
 
@@ -1185,5 +1240,13 @@ namespace <#= "GBAK" + ".Engine" #>
 		public string Name = "";
 		public string Type = "";
 	}
+	public class Relation
+    {
+        public string DBIdName { get; set; }
+        public string Table { get; set; }
+        public string Column { get; set; }
+        public string ParentTable { get; set; }
+        public string ParentColumn { get; set; }
+    }
 	
 #>

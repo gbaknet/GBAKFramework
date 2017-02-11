@@ -2,6 +2,7 @@
 
 
 
+
 // Generated helper templates
 // Generated items
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\HelperMethods.cs
@@ -13,8 +14,10 @@
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\BaseAndExtensions_MyLocalDBConnection.cs
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Triggers.cs
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Engine_Triggers.cs
-// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Engine_Table_Table.cs
-// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Table_Table.cs
+// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Engine_Table_PeopleProperties.cs
+// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Table_PeopleProperties.cs
+// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Engine_Table_People.cs
+// GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Table_People.cs
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_Engine_SP.cs
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_SP.cs
 // GBAKFrameworkSamples\GBAKFrameworkSamples\TModel\MyLocalDBConnection_SP_get_table.cs
