@@ -1,0 +1,940 @@
+﻿<#@ template language="C#" hostspecific="true" debug="false" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.Xml" #>
+<#@ assembly name="Microsoft.Build" #>
+<#@ assembly name="Microsoft.SqlServer.Smo" #>
+<#@ assembly name="Microsoft.SqlServer.ConnectionInfo" #>
+<#@ assembly name="Microsoft.SqlServer.Management.Sdk.Sfc" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="Microsoft.SqlServer.Management.Smo" #>
+<#@ import namespace="Microsoft.Build.Evaluation" #>
+<#@ include file="TModel4.ttinclude" #>
+<#@ include file="TModel3.ttinclude" #>
+<#@ include file="TModel2.ttinclude" #>
+<#var manager = TemplateFileManager.Create(this);#>
+<#
+EnvDTE.Project p = this.FindProject();
+string ProjectName = p.FullName.Split('\\')[p.FullName.Split('\\').Length-1];
+ProjectName = ProjectName.Substring(0,ProjectName.LastIndexOf('.'));
+var collection = new ProjectCollection();
+var project = collection.LoadProject(p.FullName);
+string EvaluatedIncludeTModel = "";
+
+
+try
+{
+	List<string> ProjectItemList = new List<string>() { "TModel2.ttinclude", "TModel3.ttinclude", "TModel4.ttinclude" };
+
+
+	foreach (var item in project.Items)
+	{
+		if (item.ItemType != "Content") {
+			if (item.ItemType!="None") continue;
+			if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+			project.Items.Remove(item);
+			project.Save();
+		}
+                
+		if (item.EvaluatedInclude.IndexOf("TModel.tt") == -1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+		if (item.EvaluatedInclude.IndexOf("TModel.tt") != -1) EvaluatedIncludeTModel = item.EvaluatedInclude.Replace("TModel.tt","");
+		if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") != -1) ProjectItemList.Remove("TModel2.ttinclude");
+		if (item.EvaluatedInclude.IndexOf("TModel3.ttinclude") != -1) ProjectItemList.Remove("TModel3.ttinclude");
+		if (item.EvaluatedInclude.IndexOf("TModel4.ttinclude") != -1) ProjectItemList.Remove("TModel4.ttinclude");
+		bool Control = false;
+		foreach (var item2 in item.DirectMetadata)
+		{
+			if (item2.Name != "DependentUpon") continue;
+			Control = true;
+			if (item2.UnevaluatedValue != "xml.TModel")
+			{
+				item2.UnevaluatedValue = "xml.TModel";
+				project.Save();
+			}
+		}
+		if (Control) continue;
+		item.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+		item.SetMetadataValue("DependentUpon", "xml.TModel");
+		project.Save();
+	}
+	foreach (string item in ProjectItemList)
+	{
+		project.AddItem("Content", EvaluatedIncludeTModel + item);
+		var item2 = project.Items.Where(z => (z.ItemType == "Content") && (z.UnevaluatedInclude == EvaluatedIncludeTModel + item)).FirstOrDefault();
+		item2.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+		item2.SetMetadataValue("DependentUpon", "xml.TModel");
+		project.Save();
+	}
+	if (ProjectItemList.Count!=0) return string.Empty;
+}
+catch(Exception ex){
+	
+}
+#>
+
+<# 
+
+var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
+   
+
+List<SQLConnectionData> SCD = new List<SQLConnectionData>();
+
+
+
+
+
+System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+xmlDoc.Load(this.Host.ResolvePath("xml.TModel"));
+System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
+
+
+List<string> Ineffaceable = new List<string>();
+List<Tables> TableList = new List<Tables>();
+List<SPData> SPList = new List<SPData>();
+
+try
+{
+
+	foreach (System.Xml.XmlNode userNode in userNodes)
+	{
+		System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
+
+		foreach(System.Xml.XmlNode node in ProcList)
+		{
+			if(node.Name=="connections")
+			{
+				foreach (System.Xml.XmlNode connection in node)
+				{	
+					
+					if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
+					if(connection.Attributes["FilePath"]!=null && connection.Attributes["FilePath"].Value!="")
+					{
+						string cnInstanceName = (connection.Attributes["InstanceName"]!=null && connection.Attributes["InstanceName"].Value!=""?@"\" + connection.Attributes["InstanceName"].Value:"");
+						string CnString = string.Format(@"App=GBAKFramework;Data Source=(LocalDB){1};Integrated Security=true;AttachDbFileName={0};MultipleActiveResultSets=True;",connection.Attributes["FilePath"].Value,cnInstanceName);
+						string nodeDBName = connection.Attributes["FilePath"].Value;
+						nodeDBName = nodeDBName.Substring(nodeDBName.LastIndexOf('\\')+1);
+						nodeDBName = nodeDBName.Substring(0,nodeDBName.LastIndexOf('.'));
+						SCD.Add(new SQLConnectionData(){
+							Name = connection.Attributes["name"].Value,
+							FilePath = connection.Attributes["FilePath"].Value,
+							ConnectionString = CnString,
+							DBName = nodeDBName
+						});
+						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString = CnString });
+						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+					}
+					else{
+						if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
+						if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
+						if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
+						if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
+						string CnString = string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value);
+						SCD.Add(new SQLConnectionData(){
+							Name = connection.Attributes["name"].Value,
+							ServerIP = connection.Attributes["Server"].Value,
+							DBName = connection.Attributes["Database"].Value,
+							User = connection.Attributes["UserID"].Value,
+							Password = connection.Attributes["Password"].Value,
+							ConnectionString = CnString
+						});
+						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=CnString });
+						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+					}
+				
+				}
+			}
+
+			if(node.Name=="database")
+			{
+				foreach(System.Xml.XmlNode databasevalues in node)
+				{
+					if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
+					if (databasevalues.Name == "sp")
+					{
+						List<SPResult> ResultsData = new List<SPResult>();
+						if (databasevalues.Attributes["Result"]!=null && databasevalues.Attributes["Result"].Value!="")
+						{
+							ResultsData.Add(new SPResult() { Name = databasevalues.Attributes["Result"].Value });
+						}
+						else{
+							foreach (System.Xml.XmlNode result in databasevalues)
+							{
+								if (result.Name != "Result") continue;
+								List<SPParam> ParamsData = new List<SPParam>();
+								foreach (System.Xml.XmlNode parameter in result)
+								{
+									string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
+									ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+								}
+								ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
+							}
+						}
+						SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
+					}
+		
+				}
+			}
+		
+		}
+	}
+
+}
+catch(Exception ex){
+	
+}
+
+
+try{
+	foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
+	{
+		if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
+		if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
+	}
+
+	config.Configuration.Save();
+}
+catch(Exception ex){
+	
+}
+
+
+
+
+foreach(SQLConnectionData SData in SCD){
+    string sqlServer = SData.ServerIP;
+    string sqlLogin = SData.User;
+    string sqlPassword = SData.Password;
+    string sqlDatabase = SData.DBName;
+    string classNamespace = "GBAK" + "." + SData.Name;
+    string destinationFolder = "";
+ 
+	//Microsoft.SqlServer.Management.Common.ServerConnection sc = new Microsoft.SqlServer.Management.Common.ServerConnection();
+	//sc.ConnectionString = SData.ConnectionString;
+
+	Server server = new Server();
+    server.ConnectionContext.ConnectionString = SData.ConnectionString;
+	/*
+	if(SData.FilePath==""){
+		server.ConnectionContext.LoginSecure = false;
+		server.ConnectionContext.Login = sqlLogin;
+		server.ConnectionContext.Password = sqlPassword;
+	}
+	*/
+    server.ConnectionContext.Connect();
+
+	
+	try{
+		GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
+	}
+	catch(Exception ex){
+		
+	}
+
+
+    foreach (Table table in server.Databases[sqlDatabase].Tables)
+    {
+        if (table.Name.StartsWith("sys"))
+        {
+            continue;
+        }
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
+		}
+#>
+<#manager.StartNewFile(SData.Name + "_Table_" + table.Name + ".cs");#>
+using System;
+using System.Data.Linq.Mapping;
+namespace <#= classNamespace #>
+{
+	public partial class Tables{
+		[Table(Name = "<#= table.Name #>")]
+		public class <#= table.Name #>: BS
+		{
+<# 
+			int columnCount = table.Columns.Count;
+			int i = 0;
+ 
+		
+			foreach (Column col in table.Columns)
+			{
+				i++;
+				string propertyType = GetNetDataType(col.DataType.Name);
+ 
+				if (string.IsNullOrWhiteSpace(propertyType))
+				{
+					continue;
+				}
+ 
+				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
+
+				if (col.Nullable && propertyType != "string")
+				{
+					propertyType += "?";
+				}
+			
+#>
+			[Column(Name = "<#=col.Name#>")]
+			public <#= propertyType #> <#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
+<#
+				if (i != columnCount)
+				{
+#>
+ 
+<#
+				}
+#>
+<#
+			}
+		
+#>
+		}
+	}
+}    
+<#manager.StartNewFile(SData.Name + "_Engine_Table_" + table.Name + ".cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
+{
+	internal static class Table_<#=table.Name#>{
+		public static bool UPDATE(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
+<#
+			string SETColumn = "";
+			string SETColumnValue = "";
+			string SETPrimaryColumn = "";
+			string SETPrimaryColumnValue = "";
+			string SETParamsObj = "";
+			string Temp1 = "";
+#>
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+            {
+<#
+				
+				i = 0;
+
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						SETPrimaryColumn = col.Name;
+						SETPrimaryColumnValue = "values." + (col.Name==table.Name?col.Name + "1":col.Name);
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += "[" + col.Name + "]=\" + (values." + Temp1 + "==null?\"NULL\":\"{" + i.ToString() + "}\") + \"" + (i!=columnCount-1?",":"");
+					SETColumnValue += ",values_" + Temp1;
+#>
+				object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+                
+				d.ExecuteCommand("UPDATE [<#=table.Name#>] SET <#=SETColumn#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+<#
+
+#>
+            }
+            return true;
+        }
+		public static GBAK.Error Add(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
+<#
+			SETColumn = "";
+			SETColumnValue = "";
+			SETParamsObj = "";
+			Temp1 = "";
+#>
+			GBAK.Error e = new GBAK.Error();
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+            {
+<#
+				
+				i = 0;
+
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += (i!=1?",":"") + "[" + col.Name + "]";
+					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
+					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
+#>
+				if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
+					
+					e.Status = true;
+					e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
+					throw new System.ArgumentException(e.Description);
+					return e;
+				}
+				object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+                d.ExecuteCommand("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>)VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+<#
+
+#>
+            }
+            return e;
+        }
+		public static bool DELETE(IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> values) {
+<#
+#>
+            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+            {
+<#
+				
+				SETPrimaryColumn = "";
+				SETPrimaryColumnValue = "";
+
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						SETPrimaryColumn = col.Name;
+						SETPrimaryColumnValue = (col.Name==table.Name?col.Name + "1":col.Name);
+						break;
+					}
+					
+					
+#>
+
+<#
+				}
+#>
+               foreach (var item in values)
+                {
+                    d.ExecuteCommand("DELETE FROM [<#=table.Name#>] WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
+                } 
+				
+<#
+
+#>
+            }
+            return true;
+        }
+	}
+}
+<#
+    }
+#>
+<#manager.StartNewFile("BaseAndExtensions_" + SData.Name + ".cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+using GBAK.Engine;
+public static class Extensions_<#=SData.Name#>
+{
+/*	public static bool Remove<T>(this IQueryable<T> value) where T : GBAK.<#=SData.Name#>.Tables.BS
+    {
+        string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
+
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+		if(TableName=="<#=table.Name#>") return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
+<#
+		}
+#>
+
+        return false;
+    }
+*/
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+	public static bool Remove(this IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> value)
+    {
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
+		return false;
+	}
+	public static bool Save(this GBAK.<#=SData.Name#>.Tables.<#=table.Name#> value) 
+    {
+        //string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
+		//if(TableName=="<#=table.Name#>") 
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.UPDATE(value as GBAK.<#=SData.Name#>.Tables.<#=table.Name#>);
+        return false;
+    }
+   
+<#
+		}
+#>	
+}
+namespace <#= "GBAK" + "." + SData.Name #>
+{
+	public partial class Tables{
+		public class BS { }
+	}
+	public partial class SP{
+		public class SS { }
+	}
+}
+<#manager.StartNewFile(SData.Name + "_Add.cs");#>
+using System;
+namespace <#= "GBAK" + "." + SData.Name #>
+{
+	public partial class Tables
+    {
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+        public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
+        {
+			return Engine.Table_<#=table.Name#>.Add(values);
+        }
+<#
+		}
+#>
+    }
+}
+<#manager.StartNewFile(SData.Name + "_Tables.cs");#>
+using System;
+namespace <#= "GBAK" + "." + SData.Name #>
+{
+	public partial class Tables
+    {
+        public static int CommandTimeout { get; set; } = 30;
+    }
+}
+<#manager.StartNewFile(SData.Name + "_Select.cs");#>
+using System;
+using System.Data.Linq;
+namespace <#= "GBAK" + "." + SData.Name #>
+{
+	public partial class Tables{
+		public class SELECT: IDisposable
+		{
+			DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>);
+			public SELECT(){
+				d.CommandTimeout = <#=SData.Name#>.Tables.CommandTimeout;
+				d.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;");
+			}
+			public void Dispose()
+			{
+				d.Dispose();
+			}
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+			public Table<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
+			{
+				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
+			}
+<#
+		}
+#>
+		}
+	}
+}
+<# 
+}	
+#>
+
+<#manager.StartNewFile("PublicVariable.cs");#>
+using System.Data.SqlClient;
+namespace <#= "GBAK" + ".Engine" #>
+{
+    public static class PublicVariable
+    {
+		
+		<#
+		foreach(SQLConnectionData SData in SCD){#>
+		public static string Connection_<#=SData.Name#> = System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.Name#>"].ConnectionString;
+		<#}#>
+	}
+}
+<#manager.StartNewFile("Error.cs");#>
+using System;
+ 
+namespace <#= "GBAK" #>
+{
+	public class Error{
+		public bool Status { get; set; } = false;
+		public string Description { get; set; } = "Successful";
+		public void SETNotNullable(string value)
+        {
+            Description = "The \"" + value + "\" field can not be null.";
+        }
+	}
+}
+<#manager.StartNewFile("HelperMethods.cs");#>
+/*
+sbyte	-128 to 127	Signed 8-bit integer
+byte	0 to 255	Unsigned 8-bit integer
+char	U+0000 to U+ffff	Unicode 16-bit character
+short	-32,768 to 32,767	Signed 16-bit integer
+ushort	0 to 65,535	Unsigned 16-bit integer
+int	-2,147,483,648 to 2,147,483,647	Signed 32-bit integer
+uint	0 to 4,294,967,295	Unsigned 32-bit integer
+long	-9,223,372,036,854,775,808 to 9,223,372,036,854,775,807	Signed 64-bit integer
+ulong	0 to 18,446,744,073,709,551,615	Unsigned 64-bit integer
+*/
+using System;
+using System.Linq;
+namespace <#= "GBAK" + ".Engine" #>
+{
+    public static class HelperMethods
+    {
+		public static TValue GetAttributeValue<TAttribute, TValue>(
+        this Type type,
+        Func<TAttribute, TValue> valueSelector)
+        where TAttribute : Attribute
+		{
+			var att = type.GetCustomAttributes(
+				typeof(TAttribute), true
+			).FirstOrDefault() as TAttribute;
+			if (att != null)
+			{
+				return valueSelector(att);
+			}
+			return default(TValue);
+		}
+<#
+		foreach (var item in new List<string>() { "long", "byte[]", "bool", "char", "DateTime", "decimal", "double", "int", "string", "Single", "short", "byte", "Guid", "long?", "bool?", "char?", "DateTime?", "decimal?", "double?", "int?", "Single?", "short?", "byte?", "Guid?" })
+		{
+#>
+		public static string GetVariableName(this System.Linq.Expressions.Expression<Func<string, <#=item#>>> f)
+        {
+            return ((f.Body as System.Linq.Expressions.MemberExpression).Member.Name);
+        }
+<#
+		}
+#>
+		public static bool isGuid(string value)
+		{
+			Guid dx;
+			if (!Guid.TryParse(value, out dx))
+				return false;
+			return true;
+		}
+		public static Guid ToGuid(object value)
+        {
+            return new Guid(Convert.ToString(value));
+        }
+		public static Guid Generate()
+        {
+            var buffer = Guid.NewGuid().ToByteArray();
+
+            var time = new DateTime(0x76c, 1, 1);
+            var now = DateTime.Now;
+            var span = new TimeSpan(now.Ticks - time.Ticks);
+            var timeOfDay = now.TimeOfDay;
+
+            var bytes = BitConverter.GetBytes(span.Days);
+            var array = BitConverter.GetBytes(
+                (long)(timeOfDay.TotalMilliseconds / 3.333333));
+
+            Array.Reverse(bytes);
+            Array.Reverse(array);
+            Array.Copy(bytes, bytes.Length - 2, buffer, buffer.Length - 6, 2);
+            Array.Copy(array, array.Length - 4, buffer, buffer.Length - 4, 4);
+
+
+            return new Guid(buffer);
+        }
+	}
+}
+
+<#manager.Process();#>
+
+<#+
+
+		string SQLPRnConv(string value)
+        {
+            if (value.Length < 1) return value;
+            if (value.Substring(0, 1) == "(")
+            {
+                value = value.Substring(1);
+                value= value.Substring(0,value.Length - 1);
+                value = SQLPRnConv(value);
+            }
+            return value;
+
+        }
+        string ConvertSQLMethod(string input)
+        {
+            string tmp = input;
+            tmp = SQLPRnConv(tmp);
+            MatchCollection mc = Regex.Matches(input, @"getdate\(\)", RegexOptions.IgnoreCase);
+
+            foreach (Match item in mc)
+            {
+                
+                tmp = tmp.Replace(item.Groups[0].Value, SQLMethodDefination("GETDATE"));
+
+                
+            }
+
+            //mc = Regex.Matches(tmp, @"dateadd", RegexOptions.IgnoreCase);
+            mc = Regex.Matches(tmp, @"dateadd[(][(]*([A-Za-z]+)[)]*,[(]*([0-9]+)[)]*,[(]*([A-Za-z.()0-9+-]+)[)]*[)]", RegexOptions.IgnoreCase);
+            foreach (Match item in mc)
+            {
+
+                tmp=tmp.Replace(item.Groups[0].Value, SQLMethodDefination("DATEADD", item.Groups[1].Value, item.Groups[2].Value, item.Groups[3].Value));
+
+            }
+            return tmp;
+        }
+        string SQLMethodDefination(string Method, params string[] prm)
+        {
+            string M = Method.ToUpper();
+            string tmp = "";
+            if (M == "DATEADD")
+            {
+                string tmp2 = SQLMethodDefination(prm[2]);
+                tmp = "";
+                if (prm[0].ToLower() == "year" | prm[0].ToLower() == "yy" | prm[0].ToLower() == "yyyy")
+                    tmp += ".AddYears(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "quarter" | prm[0].ToLower() == "qq" | prm[0].ToLower() == "q")
+                    tmp += ".AddMonths(" + Convert.ToInt32(prm[1]) * 3 + ")";
+                else if (prm[0].ToLower() == "month" | prm[0].ToLower() == "mm" | prm[0].ToLower() == "m")
+                    tmp += ".AddMonths(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "dayofyear" | prm[0].ToLower() == "dy" | prm[0].ToLower() == "y")
+                    tmp += "";
+                else if (prm[0].ToLower() == "day" | prm[0].ToLower() == "dd" | prm[0].ToLower() == "d")
+                    tmp += ".AddDays(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "week" | prm[0].ToLower() == "wk" | prm[0].ToLower() == "ww")
+                    tmp += ".AddDays(" + Convert.ToInt32(prm[1]) * 7 + ")";
+                else if (prm[0].ToLower() == "weekday" | prm[0].ToLower() == "dw" | prm[0].ToLower() == "w")
+                    tmp += "";
+                else if (prm[0].ToLower() == "hour" | prm[0].ToLower() == "hh")
+                    tmp += ".AddHours(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "minute" | prm[0].ToLower() == "mi" | prm[0].ToLower() == "n")
+                    tmp += ".AddMinutes(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "second" | prm[0].ToLower() == "ss" | prm[0].ToLower() == "s")
+                    tmp += ".AddSeconds(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "millisecond" | prm[0].ToLower() == "ms")
+                    tmp += "";
+                else if (prm[0].ToLower() == "microsecond" | prm[0].ToLower() == "mcs")
+                    tmp += "";
+                else if (prm[0].ToLower() == "nanosecond" | prm[0].ToLower() == "ns")
+                    tmp += "";
+                if (tmp == "")
+                {
+                    return prm[2];
+                }
+                else
+                {
+                    return tmp2 + tmp;
+                }
+            }
+            else if (M == "GETDATE")
+            {
+                return "DateTime.Now";
+            }
+            return Method;
+        }
+
+		public string GetDefaultValue(string DataType, DefaultConstraint Dc, bool Nullable)
+        {
+
+            DataType = DataType.ToLower();
+            string defaultData = "null";
+            if (Dc == null)
+            {
+                if (Nullable == false) return null;
+                return defaultData;
+            }
+            string defaultData2 = Dc.Text;
+            if (DataType == "long" | DataType == "decimal" | DataType == "double" | DataType == "int" | DataType == "short" | DataType == "byte")
+            {
+                defaultData2 = defaultData2.Trim('(').Trim(')');
+                double tparse = 0;
+                if (double.TryParse(defaultData2, out tparse)) defaultData = tparse.ToString();
+            }
+            else if (DataType == "bool") { if (defaultData2 == "((0))") defaultData = "false"; else defaultData = "true"; }
+            else if (DataType == "datetime")
+            {
+												defaultData = ConvertSQLMethod(defaultData2);
+			
+            }
+            else if (DataType == "string" | DataType == "char")
+            {
+                if (defaultData2.Length > 0) defaultData = "\"" + defaultData2.Substring(2, defaultData2.Length - 4) + "\"";
+            }
+            else if (DataType == "guid")
+            {
+                if (defaultData2 == "(newid())") defaultData = "GBAK.Engine.HelperMethods.Generate()";
+            }
+
+            if (defaultData == "null" & Nullable == false) return null;
+            return defaultData;
+
+
+        }
+    
+	public static string ConvertObject(string DataType,string str,params object[] prm){
+		string DT = string.Format(str,prm);
+		string cnv = "";
+		if (DataType=="long") cnv="ToInt64";
+		else if (DataType=="bool") cnv="ToBoolean";
+		else if (DataType=="string") cnv="ToString";
+		else if (DataType=="char") cnv="ToChar";
+		else if (DataType=="byte[]") cnv="FromBase64String";
+		else if (DataType=="DateTime") cnv="ToDateTime";
+		else if (DataType=="decimal") cnv="ToDecimal";
+		else if (DataType=="double") cnv="ToDouble";
+		else if (DataType=="int") cnv="ToInt32";
+		else if (DataType=="Single") cnv="ToSingle";
+		else if (DataType=="short") cnv="ToInt16";
+		else if (DataType=="byte") cnv="ToByte";
+		else if (DataType=="Guid") cnv="GBAK.Engine.HelperMethods.ToGuid";
+
+
+
+		if (DataType!="Guid") return "Convert." + cnv + "(" + DT + ")";
+		else return cnv + "(" + DT + ")";
+		
+	}
+	
+	public static string GetDataType(string CDataTypeName){
+		
+		switch (CDataTypeName)
+        {
+			case "Int64":
+                return "long";
+			case "Int32":
+                return "int";
+			case "Int16":
+                return "short";
+			case "Byte":
+                return "byte";
+			case "Boolean":
+                return "bool";
+			case "Base64String":
+                return "byte[]";
+			case "String":
+                return "string";
+			case "Char":
+                return "char";
+			default:
+				return CDataTypeName;
+		}
+	}
+	
+    public static string GetNetDataType(string sqlDataTypeName)
+    {
+        switch (sqlDataTypeName.ToLower())
+        {
+            case "bigint":
+                return "long";
+            case "binary":
+            case "image":
+            case "varbinary":
+                return "byte[]";
+            case "bit":
+                return "bool";
+            case "char":
+                return "char";
+            case "date":
+            case "time":
+            case "datetime":
+            case "smalldatetime":
+                return "DateTime";
+            case "decimal":
+            case "money":
+            case "numeric":
+                return "decimal";
+            case "float":
+                return "double";
+            case "int":
+                return "int";
+            case "nchar":
+            case "nvarchar":
+            case "text":
+			case "ntext":
+            case "varchar":
+            case "xml":
+                return "string";
+            case "real":
+                return "Single";
+            case "smallint":
+                return "short";
+            case "tinyint":
+                return "byte";
+            case "uniqueidentifier":
+                return "Guid";
+                 
+            default:
+                return sqlDataTypeName;
+        }
+    }
+ 
+    void SaveOutput(string outputFileName, string destinationFolder)
+    {
+        string templateDirectory = Path.Combine(Path.GetDirectoryName(Host.TemplateFile), destinationFolder);
+        string outputFilePath = Path.Combine(templateDirectory, outputFileName);
+        File.Delete(outputFilePath);
+        File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+ 
+        this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+    }
+	
+	public class SQLConnectionData{
+		public string ServerIP="";
+		public string User="";
+		public string DBName="";
+		public string Password="";
+		public string Name="";
+		public string FilePath="";
+		public string ConnectionString="";
+	}
+	public class Tables{
+		public string DBIdName = "";
+		public string Name = "";
+	}
+	public class SPData{
+		public string DBIdName = "";
+		public string Name = "";
+		public List<SPResult> Results = new List<SPResult>();
+	}
+	public class SPResult{
+		public string Name = "";
+		public List<SPParam> Params = new List<SPParam>();
+	}
+	public class SPParam{
+		public string Name = "";
+		public string Type = "";
+	}
+	
+#>
