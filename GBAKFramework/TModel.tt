@@ -1092,6 +1092,7 @@ namespace <#= "GBAK" + ".Engine" #>
 		else if (DataType=="DateTime") cnv="ToDateTime";
 		else if (DataType=="decimal") cnv="ToDecimal";
 		else if (DataType=="double") cnv="ToDouble";
+		else if (DataType=="Double") cnv="ToDouble";
 		else if (DataType=="int") cnv="ToInt32";
 		else if (DataType=="Single") cnv="ToSingle";
 		else if (DataType=="short") cnv="ToInt16";
