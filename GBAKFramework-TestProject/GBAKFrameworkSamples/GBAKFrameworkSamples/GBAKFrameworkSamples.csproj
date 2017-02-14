@@ -72,6 +72,9 @@
     <Compile Include="TModel\HelperMethods.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
+    <Compile Include="TModel\MyLocalDBConnection.cs">
+      <DependentUpon>TModel.tt</DependentUpon>
+    </Compile>
     <Compile Include="TModel\MyLocalDBConnection_Add.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
@@ -85,9 +88,6 @@
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
     <Compile Include="TModel\MyLocalDBConnection_Engine_Triggers.cs">
-      <DependentUpon>TModel.tt</DependentUpon>
-    </Compile>
-    <Compile Include="TModel\MyLocalDBConnection_Select.cs">
       <DependentUpon>TModel.tt</DependentUpon>
     </Compile>
     <Compile Include="TModel\MyLocalDBConnection_SP.cs">
@@ -121,9 +121,7 @@
     <None Include="TModel\TModel3.ttinclude" />
     <None Include="TModel\TModel4.ttinclude" />
     <None Include="TModel\TModel5.ttinclude" />
-    <None Include="TModel\xml.TModel">
-      <SubType>Designer</SubType>
-    </None>
+    <None Include="TModel\xml.TModel" />
   </ItemGroup>
   <ItemGroup>
     <Service Include="{508349B6-6B84-4DF5-91F0-309BEEBAD82D}" />

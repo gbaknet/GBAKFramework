@@ -20,13 +20,13 @@ namespace GBAKFrameworkSamples
             {
 
 
-                using (var SELECT = new GBAK.MyLocalDBConnection.Tables.SELECT())
+                using (var db = new GBAK.MyLocalDBConnection())
                 {
-                    if (SELECT.People().Count() == 0)
+                    if (db.Select.People().Count() == 0)
                     {
                         Random r = new Random();
 
-                        GBAK.MyLocalDBConnection.Tables.Add(new GBAK.MyLocalDBConnection.Tables.People() { age = (byte)r.Next(18, 60), female = (r.Next(0, 2) == 1 ? false : true), name = "Lorem", surname = "Ipsum" });
+                        GBAK.MyLocalDBConnection.Tables.People.Add(new GBAK.MyLocalDBConnection.Tables.People() { age = (byte)r.Next(18, 60), female = (r.Next(0, 2) == 1 ? false : true), name = "Lorem", surname = "Ipsum" });
                     }
 
 
@@ -35,9 +35,9 @@ namespace GBAKFrameworkSamples
 
 
                 
-                using (var SELECT = new GBAK.MyLocalDBConnection.Tables.SELECT())
+                using (var db = new GBAK.MyLocalDBConnection())
                 {
-                    var tbl = SELECT.People();
+                    var tbl = db.Select.People();
                     foreach (var item in tbl)
                     {
                         Console.WriteLine(string.Format("FE> ID: {0} - Name: {1} - Surname: {2} - Age: {3} - Sex: {4}", item.Id, item.name, item.surname, item.age, ((bool)item.female ? "Female" : "Male")));
@@ -49,13 +49,13 @@ namespace GBAKFrameworkSamples
                     }
                 }
 
-                using (var EXEC = new GBAK.MyLocalDBConnection.SP.EXEC())
+                using (var db = new GBAK.MyLocalDBConnection())
                 {
                     Console.Write("Write Record ID:> ");
                     string id = Console.ReadLine();
                     int id_ = 0;
                     if (!int.TryParse(id, out id_)) id_ = 0;
-                    var sp = EXEC.get_table(id_);
+                    var sp = db.Exec.get_table(id_);
                     var Rsl1 = sp.Result1.FirstOrDefault();
                     if (Rsl1 != null)
                     {

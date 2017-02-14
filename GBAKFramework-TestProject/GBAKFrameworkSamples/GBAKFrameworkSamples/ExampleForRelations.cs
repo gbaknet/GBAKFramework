@@ -10,9 +10,9 @@ namespace GBAKFrameworkSamples
     {
         public static void Example()
         {
-            using (var Select = new GBAK.MyLocalDBConnection.Tables.SELECT())
+            using (var db = new GBAK.MyLocalDBConnection())
             {
-                var spf = Select.People().FirstOrDefault();
+                var spf = db.Select.People().FirstOrDefault();
                 var relationtable = spf.Relations().PeopleProperties().FirstOrDefault();
             }
         }
