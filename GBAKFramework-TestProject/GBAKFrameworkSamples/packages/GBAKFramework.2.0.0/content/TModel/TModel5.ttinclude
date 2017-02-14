@@ -1,0 +1,182 @@
+﻿<#@output extension=".txt"#>
+<#+
+	List<Relation> RelationsMapping(string ConnectionName, string sqlDatabase, Server server){
+		List<Relation> r = new List<Relation>();
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+        {
+            foreach (ForeignKey item in table.ForeignKeys)
+            {
+                foreach (ForeignKeyColumn item2 in item.Columns)
+                {
+                    r.Add(new Relation() {DBIdName = ConnectionName, Table = table.Name, Column = item2.Name, ParentColumn = item2.ReferencedColumn, ParentTable = item.ReferencedTable });
+
+                }
+            }
+        }
+		return r;
+	}
+
+
+	/*void ProjectInstall(){
+		try
+		{
+			List<string> ProjectItemList = new List<string>() { "TModel2.ttinclude", "TModel3.ttinclude", "TModel4.ttinclude" };
+
+
+			foreach (var item in project.Items)
+			{
+				if (item.ItemType != "Content") {
+					if (item.ItemType!="None") continue;
+					if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+					project.Items.Remove(item);
+					project.Save();
+				}
+                
+				if (item.EvaluatedInclude.IndexOf("TModel.tt") == -1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
+				if (item.EvaluatedInclude.IndexOf("TModel.tt") != -1) EvaluatedIncludeTModel = item.EvaluatedInclude.Replace("TModel.tt","");
+				if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") != -1) ProjectItemList.Remove("TModel2.ttinclude");
+				if (item.EvaluatedInclude.IndexOf("TModel3.ttinclude") != -1) ProjectItemList.Remove("TModel3.ttinclude");
+				if (item.EvaluatedInclude.IndexOf("TModel4.ttinclude") != -1) ProjectItemList.Remove("TModel4.ttinclude");
+				bool Control = false;
+				foreach (var item2 in item.DirectMetadata)
+				{
+					if (item2.Name != "DependentUpon") continue;
+					Control = true;
+					if (item2.UnevaluatedValue != "xml.TModel")
+					{
+						item2.UnevaluatedValue = "xml.TModel";
+						project.Save();
+					}
+				}
+				if (Control) continue;
+				item.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+				item.SetMetadataValue("DependentUpon", "xml.TModel");
+				project.Save();
+			}
+			foreach (string item in ProjectItemList)
+			{
+				project.AddItem("Content", EvaluatedIncludeTModel + item);
+				var item2 = project.Items.Where(z => (z.ItemType == "Content") && (z.UnevaluatedInclude == EvaluatedIncludeTModel + item)).FirstOrDefault();
+				item2.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
+				item2.SetMetadataValue("DependentUpon", "xml.TModel");
+				project.Save();
+			}
+			//if (ProjectItemList.Count!=0) return string.Empty;
+		}
+		catch(Exception ex){
+	
+		}
+	
+	}*/
+
+	void XMLDataLoader(ref List<SQLConnectionData> SCD, ref ConfigurationAccessor config, ref List<string> Ineffaceable, ref List<Tables> TableList, ref List<SPData> SPList){
+		System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
+		xmlDoc.Load(this.Host.ResolvePath("xml.TModel"));
+		System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
+		//try
+		//{
+
+			foreach (System.Xml.XmlNode userNode in userNodes)
+			{
+				System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
+
+				foreach(System.Xml.XmlNode node in ProcList)
+				{
+					if(node.Name=="connections")
+					{
+						foreach (System.Xml.XmlNode connection in node)
+						{	
+					
+							if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
+							if(connection.Attributes["FilePath"]!=null && connection.Attributes["FilePath"].Value!="")
+							{
+								string cnInstanceName = (connection.Attributes["InstanceName"]!=null && connection.Attributes["InstanceName"].Value!=""?@"\" + connection.Attributes["InstanceName"].Value:"");
+								string CnString = string.Format(@"App=GBAKFramework;Data Source=(LocalDB){1};Integrated Security=true;AttachDbFileName={0};MultipleActiveResultSets=True;",connection.Attributes["FilePath"].Value,cnInstanceName);
+								string nodeDBName = connection.Attributes["FilePath"].Value;
+								nodeDBName = nodeDBName.Substring(nodeDBName.LastIndexOf('\\')+1);
+								nodeDBName = nodeDBName.Substring(0,nodeDBName.LastIndexOf('.'));
+								SCD.Add(new SQLConnectionData(){
+									Name = connection.Attributes["name"].Value,
+									FilePath = connection.Attributes["FilePath"].Value,
+									ConnectionString = CnString,
+									DBName = nodeDBName
+								});
+								config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString = CnString });
+								Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+							}
+							else{
+								if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
+								if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
+								if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
+								if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
+								string CnString = string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;Max Pool Size=1000;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value);
+								SCD.Add(new SQLConnectionData(){
+									Name = connection.Attributes["name"].Value,
+									ServerIP = connection.Attributes["Server"].Value,
+									DBName = connection.Attributes["Database"].Value,
+									User = connection.Attributes["UserID"].Value,
+									Password = connection.Attributes["Password"].Value,
+									ConnectionString = CnString
+								});
+								config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=CnString });
+								Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
+							}
+				
+						}
+					}
+
+					if(node.Name=="database")
+					{
+						foreach(System.Xml.XmlNode databasevalues in node)
+						{
+							if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
+							if (databasevalues.Name == "sp")
+							{
+								List<SPResult> ResultsData = new List<SPResult>();
+								if (databasevalues.Attributes["Result"]!=null && databasevalues.Attributes["Result"].Value!="")
+								{
+									ResultsData.Add(new SPResult() { Name = databasevalues.Attributes["Result"].Value });
+								}
+								else{
+									foreach (System.Xml.XmlNode result in databasevalues)
+									{
+										if (result.Name != "Result") continue;
+										List<SPParam> ParamsData = new List<SPParam>();
+										foreach (System.Xml.XmlNode parameter in result)
+										{
+											string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
+											ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
+										}
+										ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
+									}
+								}
+								SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
+							}
+		
+						}
+					}
+		
+				}
+			}
+
+		//}
+		//catch(Exception ex){
+	
+		//}
+
+
+		try{
+			foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
+			{
+				if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
+				if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
+			}
+
+			config.Configuration.Save();
+		}
+		catch(Exception ex){
+	
+		}
+	}
+
+#>

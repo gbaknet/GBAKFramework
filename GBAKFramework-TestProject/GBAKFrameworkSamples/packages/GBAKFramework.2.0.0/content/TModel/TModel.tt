@@ -1,0 +1,1150 @@
+﻿<#@ template language="C#" hostspecific="true" debug="false" #>
+<#@ assembly name="System.Core" #>
+<#@ assembly name="System.Data" #>
+<#@ assembly name="System.Xml" #>
+<#@ assembly name="Microsoft.Build" #>
+<#@ assembly name="Microsoft.SqlServer.Smo" #>
+<#@ assembly name="Microsoft.SqlServer.ConnectionInfo" #>
+<#@ assembly name="Microsoft.SqlServer.Management.Sdk.Sfc" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.IO" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ import namespace="Microsoft.SqlServer.Management.Smo" #>
+<#@ import namespace="Microsoft.Build.Evaluation" #>
+<#@ include file="TModel4.ttinclude" #>
+<#@ include file="TModel3.ttinclude" #>
+<#@ include file="TModel2.ttinclude" #>
+<#@ include file="TModel5.ttinclude" #>
+<#var manager = TemplateFileManager.Create(this);#>
+<#
+EnvDTE.Project p = this.FindProject();
+string ProjectName = p.FullName.Split('\\')[p.FullName.Split('\\').Length-1];
+ProjectName = ProjectName.Substring(0,ProjectName.LastIndexOf('.'));
+var collection = new ProjectCollection();
+var project = collection.LoadProject(p.FullName);
+string EvaluatedIncludeTModel = "";
+
+
+var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
+   
+
+List<SQLConnectionData> SCD = new List<SQLConnectionData>();
+
+
+
+
+
+
+
+List<string> Ineffaceable = new List<string>();
+List<Tables> TableList = new List<Tables>();
+List<SPData> SPList = new List<SPData>();
+List<Relation> Relations = new List<Relation>();
+            
+XMLDataLoader(ref SCD, ref config, ref Ineffaceable, ref TableList, ref SPList);
+
+
+
+
+foreach(SQLConnectionData SData in SCD)
+{
+    string sqlServer = SData.ServerIP;
+    string sqlLogin = SData.User;
+    string sqlPassword = SData.Password;
+    string sqlDatabase = SData.DBName;
+    string classNamespace = "GBAK";
+    string destinationFolder = "";
+ 
+	//Microsoft.SqlServer.Management.Common.ServerConnection sc = new Microsoft.SqlServer.Management.Common.ServerConnection();
+	//sc.ConnectionString = SData.ConnectionString;
+
+	Server server = new Server();
+    server.ConnectionContext.ConnectionString = SData.ConnectionString;
+	/*
+	if(SData.FilePath==""){
+		server.ConnectionContext.LoginSecure = false;
+		server.ConnectionContext.Login = sqlLogin;
+		server.ConnectionContext.Password = sqlPassword;
+	}
+	*/
+    server.ConnectionContext.Connect();
+
+	
+	try{
+		GenerateSP(SData.Name,server,"GBAK",classNamespace,SData,SPList,ref manager);
+	}
+	catch(Exception ex){
+		
+	}
+	try{
+		Relations = RelationsMapping(SData.Name,sqlDatabase,server);
+	}
+	catch(Exception ex){
+		
+	}
+
+#>
+
+
+<#manager.StartNewFile(SData.Name + ".cs");#>
+namespace GBAK
+{
+	using System;
+	using System.Linq;
+	using System.Data.Linq;
+	public partial class <#=SData.Name#>:IDisposable
+	{
+		public int CommandTimeout { get; set; } = 30;
+		public SELECT Select { get; private set; }
+		public EXEC Exec { get; private set; }
+		DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>);
+		public <#=SData.Name#>()
+		{
+			d.CommandTimeout = CommandTimeout;
+			d.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;");
+			Select = new SELECT(ref d);
+			Exec = new EXEC(ref d);
+		}
+		public void Dispose()
+		{
+			d.Dispose();
+		}
+		public class SELECT
+        {
+            DataContext d;
+            public SELECT(ref DataContext d)
+            {
+                this.d = d;
+            }
+<#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+    {
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
+		}
+#>
+			public IQueryable<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
+			{
+				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
+			}
+<#
+	}
+#>
+        }
+	}
+}
+<#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+    {
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
+		}
+#>
+
+
+<#manager.StartNewFile(SData.Name + "_Table_" + table.Name + ".cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq.Mapping;
+namespace <#= classNamespace #>
+{
+	public partial class <#=SData.Name#>
+	{
+		public partial class Tables
+		{
+			[Table(Name = "<#= table.Name #>")]
+			public partial class <#=table.Name#>
+			{
+<# 
+			int columnCount = table.Columns.Count;
+			int i = 0;
+			string RelationIntializerColumns = "";
+ 
+			foreach (Column col in table.Columns)
+			{
+				i++;
+				string propertyType = GetNetDataType(col.DataType.Name);
+ 
+				if (string.IsNullOrWhiteSpace(propertyType))
+				{
+					continue;
+				}
+ 
+				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
+				
+				if (col.Nullable && propertyType != "string")
+				{
+					propertyType += "?";
+				}
+				string ColNetName = (col.Name==table.Name?col.Name + "1":col.Name);
+				RelationIntializerColumns += "\r\n                k." + ColNetName + " = " + ColNetName + ";";
+#>
+				[Column(Name = "<#=col.Name#>")]
+				public <#= propertyType #> <#=ColNetName#> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
+<#
+			}
+#>
+			public Relation Relations()
+				{
+					<#=table.Name#> k = new <#=table.Name#>();
+					<#=RelationIntializerColumns#>
+					return new Relation(ref k);
+				}
+				public class Relation : IDisposable
+				{
+					<#=table.Name#> k = new <#=table.Name#>();
+					<#=SData.Name#> N = new <#=SData.Name#>();
+					public Relation(ref <#=table.Name#> k)
+					{
+						this.k = k;
+					}
+					public void Dispose()
+					{
+						N.Dispose();
+					}
+<#
+			foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.ParentTable==table.Name)))
+			{
+				if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.Table).FirstOrDefault()==null) continue;
+#>
+					public IQueryable<Tables.<#=RelItem1.Table#>> <#=RelItem1.Table#>()
+					{
+						return N.Select.<#=RelItem1.Table#>().Where(z => z.<#=RelItem1.Column#> == k.<#=RelItem1.ParentColumn#>);
+					}
+<#
+			}
+
+			foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.Table==table.Name)))
+			{
+				if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.ParentTable).FirstOrDefault()==null) continue;
+#>
+					public IQueryable<Tables.<#=RelItem1.ParentTable#>> <#=RelItem1.ParentTable#>()
+					{
+						return N.Select.<#=RelItem1.ParentTable#>().Where(z => z.<#=RelItem1.ParentColumn#> == k.<#=RelItem1.Column#>);
+					}
+<#
+			}
+#>
+                
+				}
+			}
+			[Table(Name = "<#= table.Name #>")]
+			public class TableAfterTrigger_<#= table.Name #>
+			{
+<# 
+			i = 0;
+ 
+			foreach (Column col in table.Columns)
+			{
+				i++;
+				string propertyType = GetNetDataType(col.DataType.Name);
+ 
+				if (string.IsNullOrWhiteSpace(propertyType))
+				{
+					continue;
+				}
+ 
+				string DefaultValue = GetDefaultValue(propertyType, col.DefaultConstraint, col.Nullable);
+				
+				if (col.Nullable && propertyType != "string")
+				{
+					propertyType += "?";
+				}
+				
+			
+#>
+				[Column(Name = "Inserted_<#=col.Name#>")]
+				public <#= propertyType #> Inserted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+				[Column(Name = "Deleted_<#=col.Name#>")]
+				public <#= propertyType #> Deleted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+<#
+				}
+#>	
+			}
+		}
+	}
+}
+<#manager.StartNewFile(SData.Name + "_Engine_Table_" + table.Name + ".cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+namespace <#= "GBAK"#>
+{
+	public partial class <#=SData.Name#>
+	{
+		public partial class Engine
+		{
+			internal static class Table_<#=table.Name#>
+			{
+				public static bool UPDATE(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) 
+				{
+<#
+			string SETColumn = "";
+			string SETColumnValue = "";
+			string SETPrimaryColumn = "";
+			string SETPrimaryColumnValue = "";
+			string SETParamsObj = "";
+			string Temp1 = "";
+#>
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+<#
+				
+				i = 0;
+
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						SETPrimaryColumn = col.Name;
+						SETPrimaryColumnValue = "values." + (col.Name==table.Name?col.Name + "1":col.Name);
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += "[" + col.Name + "]=\" + (values." + Temp1 + "==null?\"NULL\":\"{" + i.ToString() + "}\") + \"" + (i!=columnCount-1?",":"");
+					SETColumnValue += ",values_" + Temp1;
+#>
+						object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+					
+						foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerUpdate_<#=table.Name#>)
+						{
+							if(!item(values)) return false;
+						}
+						
+						System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("UPDATE [<#=table.Name#>] SET <#=SETColumn#> OUTPUT <#=OutputTableClause(table.Name,table.Columns,1)#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+						foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerUpdate_<#=table.Name#>)
+						{
+							item(OutputResult.FirstOrDefault());
+						}
+					}
+					return true;
+				}
+<#
+				string PrimaryKeyColumnName = "";
+				string PrimaryKeyColumnType = "";
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						PrimaryKeyColumnName = (col.Name==table.Name?col.Name + "1":col.Name);
+						PrimaryKeyColumnType = GetNetDataType(col.DataType.Name);
+						if (PrimaryKeyColumnType != "string")
+						{
+							PrimaryKeyColumnType += "?";
+						}
+						continue;
+					}
+				}
+#>
+				public static GBAK.Error Add(System.Collections.Generic.List<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> ListValues) 
+				{
+			
+<#
+			SETColumn = "";
+			SETColumnValue = "";
+			SETParamsObj = "";
+			Temp1 = "";
+#>
+					GBAK.Error e = new GBAK.Error();
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+						foreach (var values in ListValues)
+						{
+<#
+				
+				i = 0;
+				
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += (i!=1?",":"") + "[" + col.Name + "]";
+					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
+					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
+#>
+							if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
+							
+								e.Status = true;
+								e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
+								throw new System.ArgumentException(e.Description);
+								return e;
+							}
+							object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+							foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
+							{
+								if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
+							}
+								
+							System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+							var OutputResultData = OutputResult.FirstOrDefault();
+							foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
+							{
+								item(OutputResultData);
+							}
+<#
+
+#>
+						}
+					}
+					return e;
+				
+				}
+				public static GBAK.Error Add(out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>,GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) 
+				{
+<#
+			SETColumn = "";
+			SETColumnValue = "";
+			SETParamsObj = "";
+			Temp1 = "";
+#>
+					GBAK.Error e = new GBAK.Error();
+					<#=PrimaryKeyColumnName#> = null;
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+<#
+				
+				i = 0;
+				
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += (i!=1?",":"") + "[" + col.Name + "]";
+					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
+					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
+#>
+						if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
+							
+							e.Status = true;
+							e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
+							throw new System.ArgumentException(e.Description);
+							return e;
+						}
+						object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+						foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
+						{
+							if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
+						}
+							
+						System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+						var OutputResultData = OutputResult.FirstOrDefault();
+						<#=PrimaryKeyColumnName#> = OutputResultData.Inserted_<#=PrimaryKeyColumnName#>;
+						foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
+						{
+							item(OutputResultData);
+						}
+					}
+					return e;
+				}
+				public static bool DELETE(IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> values) {
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+<#
+				
+				SETPrimaryColumn = "";
+				SETPrimaryColumnValue = "";
+
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						SETPrimaryColumn = col.Name;
+						SETPrimaryColumnValue = (col.Name==table.Name?col.Name + "1":col.Name);
+						break;
+					}
+				}
+#>
+					   foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerDelete_<#=table.Name#>)
+						{
+							foreach (var item in values)
+							{
+								if(!item2(item)) return false;
+							}
+						}
+					   foreach (var item in values)
+						{
+							
+							
+							System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("DELETE FROM [<#=table.Name#>] OUTPUT <#=OutputTableClause(table.Name,table.Columns,2)#> WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
+							
+							foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerDelete_<#=table.Name#>)
+							{
+								item2(OutputResult.FirstOrDefault());
+							}
+						} 
+					}
+					return true;
+				}
+			}
+		}
+	}
+}
+<#		
+	}
+#>
+<#manager.StartNewFile(SData.Name + "_Engine_Triggers.cs");#>
+using System;
+using System.Collections.Generic;
+using System.Data.Linq;
+using System.Data.SqlClient;
+namespace GBAK
+{
+	public partial class <#=SData.Name#>
+	{
+		public partial class Engine
+		{
+			internal static class Triggers<T>
+			{
+<#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+	{
+		if (table.Name.StartsWith("sys"))
+		{
+			continue;
+		}
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
+		}
+#>
+				public static List<Action<T>> TriggerInsert_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<Action<T>> TriggerUpdate_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<Action<T>> TriggerDelete_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerInsert_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerUpdate_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerDelete_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+<#
+	}
+#>
+			}
+		}
+	}
+}
+<#manager.StartNewFile(SData.Name + "_Triggers.cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+namespace GBAK
+{
+	public partial class <#=SData.Name#>
+	{
+		public static class Triggers
+		{
+			public static void AfterAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, Action<T> MethodOrDelegate, params TriggerType[] TriggerType)
+			{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+				if (TableName.ToString() == "<#=table.Name#>")
+				{
+					foreach (TriggerType item in TriggerType)
+					{
+						if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+					}
+				}
+<#
+		}
+#>
+			}
+			public static void InsteadAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, GBAK.Engine.ActionWithResultBoolean<T> MethodOrDelegate, params TriggerType[] TriggerType)
+			{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+				if (TableName.ToString() == "<#=table.Name#>")
+				{
+					foreach (TriggerType item in TriggerType)
+					{
+						if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+					}
+				}
+<#
+		}
+#>
+			}
+			public enum TriggerType
+			{
+				Update,
+				Insert,
+				Delete
+			}
+		}
+	}
+}
+<#manager.StartNewFile("BaseAndExtensions_" + SData.Name + ".cs");#>
+using System;
+using System.Linq;
+using System.Data.Linq;
+using System.Data.Linq.Mapping;
+using GBAK.Engine;
+public static class Extensions_<#=SData.Name#>
+{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+#>
+	public static bool Remove(this IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> value)
+    {
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
+		return false;
+	}
+	public static bool Save(this GBAK.<#=SData.Name#>.Tables.<#=table.Name#> value) 
+    {
+        //string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
+		//if(TableName=="<#=table.Name#>") 
+		return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.UPDATE(value as GBAK.<#=SData.Name#>.Tables.<#=table.Name#>);
+        return false;
+    }
+   
+<#
+		}
+#>	
+}
+
+
+
+<#manager.StartNewFile(SData.Name + "_Add.cs");#>
+using System;
+namespace <#= "GBAK"#>
+{
+	public partial class <#=SData.Name#>
+    {
+		public partial class Tables
+		{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+				continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+				continue;
+			}
+			
+			string PrimaryKeyColumnName = "";
+			string PrimaryKeyColumnType = "";
+			foreach (Column col in table.Columns)
+			{
+				if(col.InPrimaryKey){
+					PrimaryKeyColumnName = (col.Name==table.Name?col.Name + "1":col.Name);
+					PrimaryKeyColumnType = GetNetDataType(col.DataType.Name);
+					if (PrimaryKeyColumnType != "string")
+					{
+						PrimaryKeyColumnType += "?";
+					}
+					continue;
+				}
+			}
+#>
+			public partial class <#=table.Name#>
+			{
+				public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values, out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>)
+				{
+					return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
+				}
+				public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
+				{
+					<#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#> = null;
+					return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
+				}
+				public static GBAK.Error Add(System.Collections.Generic.List<<#=SData.Name#>.Tables.<#=table.Name#>> BulkValues)
+				{
+					return Engine.Table_<#=table.Name#>.Add(BulkValues);
+				}
+			}
+<#
+		}
+#>
+		}
+	}
+}
+
+
+
+
+
+<#manager.StartNewFile(SData.Name + "_Tables.cs");#>
+using System;
+namespace <#= "GBAK  "  #>
+{
+	public partial class <#=SData.Name#>
+	{
+	public partial class Tables
+		{
+			public enum Name
+			{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+							continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+							continue;
+			}
+			WriteLine("                " + table.Name + ",");
+		}
+#>      
+	
+			}
+		}
+	}
+}
+
+
+<#
+}
+#>
+<#manager.StartNewFile("PublicVariable.cs");#>
+using System.Data.SqlClient;
+namespace <#= "GBAK" + ".Engine" #>
+{
+    public static class PublicVariable
+    {
+		
+		<#
+		foreach(SQLConnectionData SData in SCD){#>
+		public static string Connection_<#=SData.Name#> = System.Configuration.ConfigurationManager.ConnectionStrings["Connection_<#=SData.Name#>"].ConnectionString;
+		<#}#>
+	}
+}
+
+<#manager.StartNewFile("Error.cs");#>
+using System;
+ 
+namespace <#= "GBAK" #>
+{
+	public class Error{
+		public bool Status { get; set; } = false;
+		public string Description { get; set; } = "Successful";
+		public void SETNotNullable(string value)
+        {
+            Description = "The \"" + value + "\" field can not be null.";
+        }
+	}
+}
+
+
+
+<#manager.StartNewFile("HelperMethods.cs");#>
+/*
+sbyte	-128 to 127	Signed 8-bit integer
+byte	0 to 255	Unsigned 8-bit integer
+char	U+0000 to U+ffff	Unicode 16-bit character
+short	-32,768 to 32,767	Signed 16-bit integer
+ushort	0 to 65,535	Unsigned 16-bit integer
+int	-2,147,483,648 to 2,147,483,647	Signed 32-bit integer
+uint	0 to 4,294,967,295	Unsigned 32-bit integer
+long	-9,223,372,036,854,775,808 to 9,223,372,036,854,775,807	Signed 64-bit integer
+ulong	0 to 18,446,744,073,709,551,615	Unsigned 64-bit integer
+*/
+using System;
+using System.Linq;
+namespace <#= "GBAK" + ".Engine" #>
+{
+	public delegate bool ActionWithResultBoolean<in T>(T obj);
+    public static class HelperMethods
+    {
+		public static TValue GetAttributeValue<TAttribute, TValue>(
+        this Type type,
+        Func<TAttribute, TValue> valueSelector)
+        where TAttribute : Attribute
+		{
+			var att = type.GetCustomAttributes(
+				typeof(TAttribute), true
+			).FirstOrDefault() as TAttribute;
+			if (att != null)
+			{
+				return valueSelector(att);
+			}
+			return default(TValue);
+		}
+<#
+		foreach (var item in new List<string>() { "long", "byte[]", "bool", "char", "DateTime", "decimal", "double", "int", "string", "Single", "short", "byte", "Guid", "long?", "bool?", "char?", "DateTime?", "decimal?", "double?", "int?", "Single?", "short?", "byte?", "Guid?" })
+		{
+#>
+		public static string GetVariableName(this System.Linq.Expressions.Expression<Func<string, <#=item#>>> f)
+        {
+            return ((f.Body as System.Linq.Expressions.MemberExpression).Member.Name);
+        }
+<#
+		}
+#>
+		public static bool isGuid(string value)
+		{
+			Guid dx;
+			if (!Guid.TryParse(value, out dx))
+				return false;
+			return true;
+		}
+		public static Guid ToGuid(object value)
+        {
+            return new Guid(Convert.ToString(value));
+        }
+		public static Guid Generate()
+        {
+            var buffer = Guid.NewGuid().ToByteArray();
+
+            var time = new DateTime(0x76c, 1, 1);
+            var now = DateTime.Now;
+            var span = new TimeSpan(now.Ticks - time.Ticks);
+            var timeOfDay = now.TimeOfDay;
+
+            var bytes = BitConverter.GetBytes(span.Days);
+            var array = BitConverter.GetBytes(
+                (long)(timeOfDay.TotalMilliseconds / 3.333333));
+
+            Array.Reverse(bytes);
+            Array.Reverse(array);
+            Array.Copy(bytes, bytes.Length - 2, buffer, buffer.Length - 6, 2);
+            Array.Copy(array, array.Length - 4, buffer, buffer.Length - 4, 4);
+
+
+            return new Guid(buffer);
+        }
+	}
+}
+<#manager.Process();#>
+
+<#+
+
+		string SQLPRnConv(string value)
+        {
+            if (value.Length < 1) return value;
+            if (value.Substring(0, 1) == "(")
+            {
+                value = value.Substring(1);
+                value= value.Substring(0,value.Length - 1);
+                value = SQLPRnConv(value);
+            }
+            return value;
+
+        }
+        string ConvertSQLMethod(string input)
+        {
+            string tmp = input;
+            tmp = SQLPRnConv(tmp);
+            MatchCollection mc = Regex.Matches(input, @"getdate\(\)", RegexOptions.IgnoreCase);
+
+            foreach (Match item in mc)
+            {
+                
+                tmp = tmp.Replace(item.Groups[0].Value, SQLMethodDefination("GETDATE"));
+
+                
+            }
+
+            //mc = Regex.Matches(tmp, @"dateadd", RegexOptions.IgnoreCase);
+            mc = Regex.Matches(tmp, @"dateadd[(][(]*([A-Za-z]+)[)]*,[(]*([0-9]+)[)]*,[(]*([A-Za-z.()0-9+-]+)[)]*[)]", RegexOptions.IgnoreCase);
+            foreach (Match item in mc)
+            {
+
+                tmp=tmp.Replace(item.Groups[0].Value, SQLMethodDefination("DATEADD", item.Groups[1].Value, item.Groups[2].Value, item.Groups[3].Value));
+
+            }
+            return tmp;
+        }
+        string SQLMethodDefination(string Method, params string[] prm)
+        {
+            string M = Method.ToUpper();
+            string tmp = "";
+            if (M == "DATEADD")
+            {
+                string tmp2 = SQLMethodDefination(prm[2]);
+                tmp = "";
+                if (prm[0].ToLower() == "year" | prm[0].ToLower() == "yy" | prm[0].ToLower() == "yyyy")
+                    tmp += ".AddYears(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "quarter" | prm[0].ToLower() == "qq" | prm[0].ToLower() == "q")
+                    tmp += ".AddMonths(" + Convert.ToInt32(prm[1]) * 3 + ")";
+                else if (prm[0].ToLower() == "month" | prm[0].ToLower() == "mm" | prm[0].ToLower() == "m")
+                    tmp += ".AddMonths(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "dayofyear" | prm[0].ToLower() == "dy" | prm[0].ToLower() == "y")
+                    tmp += "";
+                else if (prm[0].ToLower() == "day" | prm[0].ToLower() == "dd" | prm[0].ToLower() == "d")
+                    tmp += ".AddDays(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "week" | prm[0].ToLower() == "wk" | prm[0].ToLower() == "ww")
+                    tmp += ".AddDays(" + Convert.ToInt32(prm[1]) * 7 + ")";
+                else if (prm[0].ToLower() == "weekday" | prm[0].ToLower() == "dw" | prm[0].ToLower() == "w")
+                    tmp += "";
+                else if (prm[0].ToLower() == "hour" | prm[0].ToLower() == "hh")
+                    tmp += ".AddHours(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "minute" | prm[0].ToLower() == "mi" | prm[0].ToLower() == "n")
+                    tmp += ".AddMinutes(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "second" | prm[0].ToLower() == "ss" | prm[0].ToLower() == "s")
+                    tmp += ".AddSeconds(" + prm[1] + ")";
+                else if (prm[0].ToLower() == "millisecond" | prm[0].ToLower() == "ms")
+                    tmp += "";
+                else if (prm[0].ToLower() == "microsecond" | prm[0].ToLower() == "mcs")
+                    tmp += "";
+                else if (prm[0].ToLower() == "nanosecond" | prm[0].ToLower() == "ns")
+                    tmp += "";
+                if (tmp == "")
+                {
+                    return prm[2];
+                }
+                else
+                {
+                    return tmp2 + tmp;
+                }
+            }
+            else if (M == "GETDATE")
+            {
+                return "DateTime.Now";
+            }
+            return Method;
+        }
+
+		public string GetDefaultValue(string DataType, DefaultConstraint Dc, bool Nullable)
+        {
+
+            DataType = DataType.ToLower();
+            string defaultData = "null";
+            if (Dc == null)
+            {
+                if (Nullable == false) return null;
+                return defaultData;
+            }
+            string defaultData2 = Dc.Text;
+            if (DataType == "long" | DataType == "decimal" | DataType == "double" | DataType == "int" | DataType == "short" | DataType == "byte")
+            {
+                defaultData2 = defaultData2.Trim('(').Trim(')');
+                double tparse = 0;
+                if (double.TryParse(defaultData2, out tparse)) defaultData = tparse.ToString();
+            }
+            else if (DataType == "bool") { if (defaultData2 == "((0))") defaultData = "false"; else defaultData = "true"; }
+            else if (DataType == "datetime")
+            {
+												defaultData = ConvertSQLMethod(defaultData2);
+			
+            }
+            else if (DataType == "string" | DataType == "char")
+            {
+                if (defaultData2.Length > 0) defaultData = "\"" + defaultData2.Substring(2, defaultData2.Length - 4) + "\"";
+            }
+            else if (DataType == "guid")
+            {
+                if (defaultData2 == "(newid())") defaultData = "GBAK.Engine.HelperMethods.Generate()";
+            }
+
+            if (defaultData == "null" & Nullable == false) return null;
+            return defaultData;
+
+
+        }
+    
+	public static string ConvertObject(string DataType,string str,params object[] prm){
+		string DT = string.Format(str,prm);
+		string cnv = "";
+		if (DataType=="long") cnv="ToInt64";
+		else if (DataType=="bool") cnv="ToBoolean";
+		else if (DataType=="string") cnv="ToString";
+		else if (DataType=="char") cnv="ToChar";
+		else if (DataType=="byte[]") cnv="FromBase64String";
+		else if (DataType=="DateTime") cnv="ToDateTime";
+		else if (DataType=="decimal") cnv="ToDecimal";
+		else if (DataType=="double") cnv="ToDouble";
+		else if (DataType=="Double") cnv="ToDouble";
+		else if (DataType=="int") cnv="ToInt32";
+		else if (DataType=="Single") cnv="ToSingle";
+		else if (DataType=="short") cnv="ToInt16";
+		else if (DataType=="byte") cnv="ToByte";
+		else if (DataType=="Guid") cnv="GBAK.Engine.HelperMethods.ToGuid";
+
+
+
+		if (DataType!="Guid") return "Convert." + cnv + "(" + DT + ")";
+		else return cnv + "(" + DT + ")";
+		
+	}
+	
+	public static string GetDataType(string CDataTypeName){
+		
+		switch (CDataTypeName)
+        {
+			case "Int64":
+                return "long";
+			case "Int32":
+                return "int";
+			case "Int16":
+                return "short";
+			case "Byte":
+                return "byte";
+			case "Boolean":
+                return "bool";
+			case "Base64String":
+                return "byte[]";
+			case "String":
+                return "string";
+			case "Char":
+                return "char";
+			default:
+				return CDataTypeName;
+		}
+	}
+	
+    public static string GetNetDataType(string sqlDataTypeName)
+    {
+        switch (sqlDataTypeName.ToLower())
+        {
+            case "bigint":
+                return "long";
+            case "binary":
+            case "image":
+            case "varbinary":
+                return "byte[]";
+            case "bit":
+                return "bool";
+            case "char":
+                return "char";
+            case "date":
+            case "time":
+            case "datetime":
+            case "smalldatetime":
+                return "DateTime";
+            case "decimal":
+            case "money":
+            case "numeric":
+                return "decimal";
+            case "float":
+                return "double";
+            case "int":
+                return "int";
+            case "nchar":
+            case "nvarchar":
+            case "text":
+			case "ntext":
+            case "varchar":
+            case "xml":
+                return "string";
+            case "real":
+                return "Single";
+            case "smallint":
+                return "short";
+            case "tinyint":
+                return "byte";
+            case "uniqueidentifier":
+                return "Guid";
+                 
+            default:
+                return sqlDataTypeName;
+        }
+    }
+	
+	//IUD>0=INSERT / 1=UPDATE / 2=DELETE
+	string OutputTableClause(string tableName, Microsoft.SqlServer.Management.Smo.ColumnCollection tableCols,Int16 IUD){
+		string ColumnNames = "";
+		if (IUD==1){
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",INSERTED.{0} AS Inserted_{0},DELETED.{0} AS Deleted_{0}",col.Name);
+			}
+		}
+		else if (IUD==0)
+		{
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",INSERTED.{0} AS Inserted_{0}",col.Name);
+			}
+		}
+		else if (IUD==2)
+		{
+			foreach (Column col in tableCols)
+			{
+				ColumnNames += string.Format(",DELETED.{0} AS Deleted_{0}",col.Name);
+			}
+		}
+		if (ColumnNames!="") ColumnNames = ColumnNames.Trim(',');
+		return ColumnNames;
+	}
+    void SaveOutput(string outputFileName, string destinationFolder)
+    {
+        string templateDirectory = Path.Combine(Path.GetDirectoryName(Host.TemplateFile), destinationFolder);
+        string outputFilePath = Path.Combine(templateDirectory, outputFileName);
+        File.Delete(outputFilePath);
+        File.WriteAllText(outputFilePath, this.GenerationEnvironment.ToString()); 
+ 
+        this.GenerationEnvironment.Remove(0, this.GenerationEnvironment.Length);
+    }
+	
+	public class SQLConnectionData{
+		public string ServerIP="";
+		public string User="";
+		public string DBName="";
+		public string Password="";
+		public string Name="";
+		public string FilePath="";
+		public string ConnectionString="";
+	}
+	public class Tables{
+		public string DBIdName = "";
+		public string Name = "";
+	}
+	public class SPData{
+		public string DBIdName = "";
+		public string Name = "";
+		public List<SPResult> Results = new List<SPResult>();
+	}
+	public class SPResult{
+		public string Name = "";
+		public List<SPParam> Params = new List<SPParam>();
+	}
+	public class SPParam{
+		public string Name = "";
+		public string Type = "";
+	}
+	public class Relation
+    {
+        public string DBIdName { get; set; }
+        public string Table { get; set; }
+        public string Column { get; set; }
+        public string ParentTable { get; set; }
+        public string ParentColumn { get; set; }
+    }
+	
+#>
