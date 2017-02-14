@@ -27,58 +27,6 @@ var project = collection.LoadProject(p.FullName);
 string EvaluatedIncludeTModel = "";
 
 
-try
-{
-	List<string> ProjectItemList = new List<string>() { "TModel2.ttinclude", "TModel3.ttinclude", "TModel4.ttinclude" };
-
-
-	foreach (var item in project.Items)
-	{
-		if (item.ItemType != "Content") {
-			if (item.ItemType!="None") continue;
-			if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
-			project.Items.Remove(item);
-			project.Save();
-		}
-                
-		if (item.EvaluatedInclude.IndexOf("TModel.tt") == -1 & item.EvaluatedInclude.IndexOf("TModel2.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel3.ttinclude") == -1 & item.EvaluatedInclude.IndexOf("TModel4.ttinclude") == -1) continue;
-		if (item.EvaluatedInclude.IndexOf("TModel.tt") != -1) EvaluatedIncludeTModel = item.EvaluatedInclude.Replace("TModel.tt","");
-		if (item.EvaluatedInclude.IndexOf("TModel2.ttinclude") != -1) ProjectItemList.Remove("TModel2.ttinclude");
-		if (item.EvaluatedInclude.IndexOf("TModel3.ttinclude") != -1) ProjectItemList.Remove("TModel3.ttinclude");
-		if (item.EvaluatedInclude.IndexOf("TModel4.ttinclude") != -1) ProjectItemList.Remove("TModel4.ttinclude");
-		bool Control = false;
-		foreach (var item2 in item.DirectMetadata)
-		{
-			if (item2.Name != "DependentUpon") continue;
-			Control = true;
-			if (item2.UnevaluatedValue != "xml.TModel")
-			{
-				item2.UnevaluatedValue = "xml.TModel";
-				project.Save();
-			}
-		}
-		if (Control) continue;
-		item.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
-		item.SetMetadataValue("DependentUpon", "xml.TModel");
-		project.Save();
-	}
-	foreach (string item in ProjectItemList)
-	{
-		project.AddItem("Content", EvaluatedIncludeTModel + item);
-		var item2 = project.Items.Where(z => (z.ItemType == "Content") && (z.UnevaluatedInclude == EvaluatedIncludeTModel + item)).FirstOrDefault();
-		item2.SetMetadataValue("Generator", "TextTemplatingFileGenerator");
-		item2.SetMetadataValue("DependentUpon", "xml.TModel");
-		project.Save();
-	}
-	if (ProjectItemList.Count!=0) return string.Empty;
-}
-catch(Exception ex){
-	
-}
-#>
-
-<# 
-
 var config = new ConfigurationAccessor((IServiceProvider)this.Host, ProjectName + @".csproj");
    
 
@@ -88,9 +36,6 @@ List<SQLConnectionData> SCD = new List<SQLConnectionData>();
 
 
 
-System.Xml.XmlDocument xmlDoc = new System.Xml.XmlDocument();
-xmlDoc.Load(this.Host.ResolvePath("xml.TModel"));
-System.Xml.XmlNodeList userNodes = xmlDoc.SelectNodes("//root");
 
 
 List<string> Ineffaceable = new List<string>();
@@ -98,120 +43,18 @@ List<Tables> TableList = new List<Tables>();
 List<SPData> SPList = new List<SPData>();
 List<Relation> Relations = new List<Relation>();
             
-try
+XMLDataLoader(ref SCD, ref config, ref Ineffaceable, ref TableList, ref SPList);
+
+
+
+
+foreach(SQLConnectionData SData in SCD)
 {
-
-	foreach (System.Xml.XmlNode userNode in userNodes)
-	{
-		System.Xml.XmlNodeList ProcList = userNode.ChildNodes;
-
-		foreach(System.Xml.XmlNode node in ProcList)
-		{
-			if(node.Name=="connections")
-			{
-				foreach (System.Xml.XmlNode connection in node)
-				{	
-					
-					if(connection.Attributes["name"]==null || connection.Attributes["name"].Value=="") continue;
-					if(connection.Attributes["FilePath"]!=null && connection.Attributes["FilePath"].Value!="")
-					{
-						string cnInstanceName = (connection.Attributes["InstanceName"]!=null && connection.Attributes["InstanceName"].Value!=""?@"\" + connection.Attributes["InstanceName"].Value:"");
-						string CnString = string.Format(@"App=GBAKFramework;Data Source=(LocalDB){1};Integrated Security=true;AttachDbFileName={0};MultipleActiveResultSets=True;",connection.Attributes["FilePath"].Value,cnInstanceName);
-						string nodeDBName = connection.Attributes["FilePath"].Value;
-						nodeDBName = nodeDBName.Substring(nodeDBName.LastIndexOf('\\')+1);
-						nodeDBName = nodeDBName.Substring(0,nodeDBName.LastIndexOf('.'));
-						SCD.Add(new SQLConnectionData(){
-							Name = connection.Attributes["name"].Value,
-							FilePath = connection.Attributes["FilePath"].Value,
-							ConnectionString = CnString,
-							DBName = nodeDBName
-						});
-						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString = CnString });
-						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
-					}
-					else{
-						if(connection.Attributes["Server"]==null || connection.Attributes["Server"].Value=="") continue;
-						if(connection.Attributes["Database"]==null || connection.Attributes["Database"].Value=="") continue;
-						if(connection.Attributes["UserID"]==null || connection.Attributes["UserID"].Value=="") continue;
-						if(connection.Attributes["Password"]==null || connection.Attributes["Password"].Value=="") continue;
-						string CnString = string.Format("App=GBAKFramework;Data Source={0};Initial Catalog={1};User ID={2};Password={3};MultipleActiveResultSets=true;",connection.Attributes["Server"].Value,connection.Attributes["Database"].Value,connection.Attributes["UserID"].Value,connection.Attributes["Password"].Value);
-						SCD.Add(new SQLConnectionData(){
-							Name = connection.Attributes["name"].Value,
-							ServerIP = connection.Attributes["Server"].Value,
-							DBName = connection.Attributes["Database"].Value,
-							User = connection.Attributes["UserID"].Value,
-							Password = connection.Attributes["Password"].Value,
-							ConnectionString = CnString
-						});
-						config.Configuration.ConnectionStrings.ConnectionStrings.Add(new ConnectionStringSettings() { Name="Connection_" + connection.Attributes["name"].Value,ConnectionString=CnString });
-						Ineffaceable.Add("Connection_" + connection.Attributes["name"].Value);
-					}
-				
-				}
-			}
-
-			if(node.Name=="database")
-			{
-				foreach(System.Xml.XmlNode databasevalues in node)
-				{
-					if(databasevalues.Name=="table")	TableList.Add(new Tables(){DBIdName=node.Attributes["name"].Value,Name=databasevalues.Attributes["name"].Value});
-					if (databasevalues.Name == "sp")
-					{
-						List<SPResult> ResultsData = new List<SPResult>();
-						if (databasevalues.Attributes["Result"]!=null && databasevalues.Attributes["Result"].Value!="")
-						{
-							ResultsData.Add(new SPResult() { Name = databasevalues.Attributes["Result"].Value });
-						}
-						else{
-							foreach (System.Xml.XmlNode result in databasevalues)
-							{
-								if (result.Name != "Result") continue;
-								List<SPParam> ParamsData = new List<SPParam>();
-								foreach (System.Xml.XmlNode parameter in result)
-								{
-									string tp = (parameter.Attributes["type"] == null ? "varchar" : parameter.Attributes["type"].Value);
-									ParamsData.Add(new SPParam() { Name = parameter.Attributes["name"].Value, Type = tp });
-								}
-								ResultsData.Add(new SPResult() { Name = result.Attributes["name"].Value, Params = ParamsData });
-							}
-						}
-						SPList.Add(new SPData() { DBIdName=node.Attributes["name"].Value, Name = databasevalues.Attributes["name"].Value, Results = ResultsData });
-					}
-		
-				}
-			}
-		
-		}
-	}
-
-}
-catch(Exception ex){
-	
-}
-
-
-try{
-	foreach(ConnectionStringSettings item in config.Configuration.ConnectionStrings.ConnectionStrings)
-	{
-		if(Ineffaceable.Where(z=>z==item.Name).FirstOrDefault()!=null) continue;
-		if(item.ConnectionString.IndexOf("App=GBAKFramework;")>-1) config.Configuration.ConnectionStrings.ConnectionStrings.Remove(item.Name);
-	}
-
-	config.Configuration.Save();
-}
-catch(Exception ex){
-	
-}
-
-
-
-
-foreach(SQLConnectionData SData in SCD){
     string sqlServer = SData.ServerIP;
     string sqlLogin = SData.User;
     string sqlPassword = SData.Password;
     string sqlDatabase = SData.DBName;
-    string classNamespace = "GBAK" + "." + SData.Name;
+    string classNamespace = "GBAK";
     string destinationFolder = "";
  
 	//Microsoft.SqlServer.Management.Common.ServerConnection sc = new Microsoft.SqlServer.Management.Common.ServerConnection();
@@ -242,27 +85,78 @@ foreach(SQLConnectionData SData in SCD){
 		
 	}
 
+#>
 
-    foreach (Table table in server.Databases[sqlDatabase].Tables)
-    {
-        if (table.Name.StartsWith("sys"))
+
+<#manager.StartNewFile(SData.Name + ".cs");#>
+namespace GBAK
+{
+	using System;
+	using System.Linq;
+	using System.Data.Linq;
+	public partial class <#=SData.Name#>:IDisposable
+	{
+		public int CommandTimeout { get; set; } = 30;
+		public SELECT Select { get; private set; }
+		public EXEC Exec { get; private set; }
+		DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>);
+		public <#=SData.Name#>()
+		{
+			d.CommandTimeout = CommandTimeout;
+			d.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;");
+			Select = new SELECT(ref d);
+			Exec = new EXEC(ref d);
+		}
+		public void Dispose()
+		{
+			d.Dispose();
+		}
+		public class SELECT
         {
-            continue;
-        }
+            DataContext d;
+            public SELECT(ref DataContext d)
+            {
+                this.d = d;
+            }
+<#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+    {
 		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
 			continue;
 		}
 #>
+			public IQueryable<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
+			{
+				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
+			}
+<#
+	}
+#>
+        }
+	}
+}
+<#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+    {
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
+		}
+#>
+
+
 <#manager.StartNewFile(SData.Name + "_Table_" + table.Name + ".cs");#>
 using System;
 using System.Linq;
 using System.Data.Linq.Mapping;
 namespace <#= classNamespace #>
 {
-	public partial class Tables{
-		[Table(Name = "<#= table.Name #>")]
-		public class <#=table.Name#>: BS
+	public partial class <#=SData.Name#>
+	{
+		public partial class Tables
 		{
+			[Table(Name = "<#= table.Name #>")]
+			public partial class <#=table.Name#>
+			{
 <# 
 			int columnCount = table.Columns.Count;
 			int i = 0;
@@ -287,67 +181,58 @@ namespace <#= classNamespace #>
 				string ColNetName = (col.Name==table.Name?col.Name + "1":col.Name);
 				RelationIntializerColumns += "\r\n                k." + ColNetName + " = " + ColNetName + ";";
 #>
-			[Column(Name = "<#=col.Name#>")]
-			public <#= propertyType #> <#=ColNetName#> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
-<#
-				if (i != columnCount)
-				{
-#>
- 
-<#
-				}
-#>
+				[Column(Name = "<#=col.Name#>")]
+				public <#= propertyType #> <#=ColNetName#> { get; set; }<#=(DefaultValue == null ? "" : " = " + DefaultValue + ";")#>
 <#
 			}
 #>
 			public Relation Relations()
-            {
-                <#=table.Name#> k = new <#=table.Name#>();
-                <#=RelationIntializerColumns#>
-                return new Relation(ref k);
-            }
-            public class Relation : IDisposable
-            {
-                <#=table.Name#> k = new <#=table.Name#>();
-                SELECT N = new SELECT();
-                public Relation(ref <#=table.Name#> k)
-                {
-                    this.k = k;
-                }
-                public void Dispose()
-                {
-                    N.Dispose();
-                }
-<#
-				foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.ParentTable==table.Name)))
 				{
-					if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.Table).FirstOrDefault()==null) continue;
-#>
-				public IQueryable<Tables.<#=RelItem1.Table#>> <#=RelItem1.Table#>()
-                {
-                    return N.<#=RelItem1.Table#>().Where(z => z.<#=RelItem1.Column#> == k.<#=RelItem1.ParentColumn#>);
-                }
-<#
+					<#=table.Name#> k = new <#=table.Name#>();
+					<#=RelationIntializerColumns#>
+					return new Relation(ref k);
 				}
-#>
-<#
-				foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.Table==table.Name)))
+				public class Relation : IDisposable
 				{
-					if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.ParentTable).FirstOrDefault()==null) continue;
-#>
-				public IQueryable<Tables.<#=RelItem1.ParentTable#>> <#=RelItem1.ParentTable#>()
-                {
-                    return N.<#=RelItem1.ParentTable#>().Where(z => z.<#=RelItem1.ParentColumn#> == k.<#=RelItem1.Column#>);
-                }
+					<#=table.Name#> k = new <#=table.Name#>();
+					<#=SData.Name#> N = new <#=SData.Name#>();
+					public Relation(ref <#=table.Name#> k)
+					{
+						this.k = k;
+					}
+					public void Dispose()
+					{
+						N.Dispose();
+					}
 <#
-				}
+			foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.ParentTable==table.Name)))
+			{
+				if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.Table).FirstOrDefault()==null) continue;
+#>
+					public IQueryable<Tables.<#=RelItem1.Table#>> <#=RelItem1.Table#>()
+					{
+						return N.Select.<#=RelItem1.Table#>().Where(z => z.<#=RelItem1.Column#> == k.<#=RelItem1.ParentColumn#>);
+					}
+<#
+			}
+
+			foreach (var RelItem1 in Relations.Where(z=>(z.DBIdName==SData.Name) & (z.Table==table.Name)))
+			{
+				if(TableList.Where(z=>z.DBIdName==SData.Name && z.Name==RelItem1.ParentTable).FirstOrDefault()==null) continue;
+#>
+					public IQueryable<Tables.<#=RelItem1.ParentTable#>> <#=RelItem1.ParentTable#>()
+					{
+						return N.Select.<#=RelItem1.ParentTable#>().Where(z => z.<#=RelItem1.ParentColumn#> == k.<#=RelItem1.Column#>);
+					}
+<#
+			}
 #>
                 
-            }
-		}
-		[Table(Name = "<#= table.Name #>")]
-		public class TableAfterTrigger_<#= table.Name #>
-		{
+				}
+			}
+			[Table(Name = "<#= table.Name #>")]
+			public class TableAfterTrigger_<#= table.Name #>
+			{
 <# 
 			i = 0;
  
@@ -370,25 +255,32 @@ namespace <#= classNamespace #>
 				
 			
 #>
-			[Column(Name = "Inserted_<#=col.Name#>")]
-			public <#= propertyType #> Inserted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
-			[Column(Name = "Deleted_<#=col.Name#>")]
-			public <#= propertyType #> Deleted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+				[Column(Name = "Inserted_<#=col.Name#>")]
+				public <#= propertyType #> Inserted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
+				[Column(Name = "Deleted_<#=col.Name#>")]
+				public <#= propertyType #> Deleted_<#= (col.Name==table.Name?col.Name + "1":col.Name) #> { get; set; }
 <#
 				}
 #>	
+			}
 		}
 	}
-}    
+}
 <#manager.StartNewFile(SData.Name + "_Engine_Table_" + table.Name + ".cs");#>
 using System;
 using System.Linq;
 using System.Data.Linq;
 using System.Data.Linq.Mapping;
-namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
+namespace <#= "GBAK"#>
 {
-	internal static class Table_<#=table.Name#>{
-		public static bool UPDATE(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
+	public partial class <#=SData.Name#>
+	{
+		public partial class Engine
+		{
+			internal static class Table_<#=table.Name#>
+			{
+				public static bool UPDATE(GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) 
+				{
 <#
 			string SETColumn = "";
 			string SETColumnValue = "";
@@ -397,8 +289,8 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 			string SETParamsObj = "";
 			string Temp1 = "";
 #>
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
-            {
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
 <#
 				
 				i = 0;
@@ -415,27 +307,24 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 					SETColumn += "[" + col.Name + "]=\" + (values." + Temp1 + "==null?\"NULL\":\"{" + i.ToString() + "}\") + \"" + (i!=columnCount-1?",":"");
 					SETColumnValue += ",values_" + Temp1;
 #>
-				object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+						object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
 <#
 				}
 #>
-                
-				foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerUpdate_<#=table.Name#>)
-				{
-					if(!item(values)) return false;
+					
+						foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerUpdate_<#=table.Name#>)
+						{
+							if(!item(values)) return false;
+						}
+						
+						System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("UPDATE [<#=table.Name#>] SET <#=SETColumn#> OUTPUT <#=OutputTableClause(table.Name,table.Columns,1)#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
+						foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerUpdate_<#=table.Name#>)
+						{
+							item(OutputResult.FirstOrDefault());
+						}
+					}
+					return true;
 				}
-				
-				System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("UPDATE [<#=table.Name#>] SET <#=SETColumn#> OUTPUT <#=OutputTableClause(table.Name,table.Columns,1)#> where <#=SETPrimaryColumn#>={0}", <#=SETPrimaryColumnValue#><#=SETColumnValue#>);
-				foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerUpdate_<#=table.Name#>)
-                {
-                    item(OutputResult.FirstOrDefault());
-                }
-<#
-
-#>
-            }
-            return true;
-        }
 <#
 				string PrimaryKeyColumnName = "";
 				string PrimaryKeyColumnType = "";
@@ -452,17 +341,20 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 					}
 				}
 #>
-		public static GBAK.Error Add(out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>,GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) {
+				public static GBAK.Error Add(System.Collections.Generic.List<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> ListValues) 
+				{
+			
 <#
 			SETColumn = "";
 			SETColumnValue = "";
 			SETParamsObj = "";
 			Temp1 = "";
 #>
-			GBAK.Error e = new GBAK.Error();
-			<#=PrimaryKeyColumnName#> = null;
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
-            {
+					GBAK.Error e = new GBAK.Error();
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+						foreach (var values in ListValues)
+						{
 <#
 				
 				i = 0;
@@ -478,40 +370,92 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
 					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
 #>
-				if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
-					
-					e.Status = true;
-					e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
-					throw new System.ArgumentException(e.Description);
-					return e;
-				}
-				object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+							if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
+							
+								e.Status = true;
+								e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
+								throw new System.ArgumentException(e.Description);
+								return e;
+							}
+							object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
 <#
 				}
 #>
-				foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
-				{
-					if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
-				}
-					
-				System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
-				var OutputResultData = OutputResult.FirstOrDefault();
-				<#=PrimaryKeyColumnName#> = OutputResultData.Inserted_<#=PrimaryKeyColumnName#>;
-				foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
-                {
-                    item(OutputResultData);
-                }
+							foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
+							{
+								if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
+							}
+								
+							System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+							var OutputResultData = OutputResult.FirstOrDefault();
+							foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
+							{
+								item(OutputResultData);
+							}
 <#
 
 #>
-            }
-            return e;
-        }
-		public static bool DELETE(IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> values) {
+						}
+					}
+					return e;
+				
+				}
+				public static GBAK.Error Add(out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>,GBAK.<#=SData.Name#>.Tables.<#=table.Name#> values) 
+				{
 <#
+			SETColumn = "";
+			SETColumnValue = "";
+			SETParamsObj = "";
+			Temp1 = "";
 #>
-            using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
-            {
+					GBAK.Error e = new GBAK.Error();
+					<#=PrimaryKeyColumnName#> = null;
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
+<#
+				
+				i = 0;
+				
+				foreach (Column col in table.Columns)
+				{
+					if(col.InPrimaryKey){
+						continue;
+					}
+					i++;
+					Temp1 = (col.Name==table.Name?col.Name + "1":col.Name);
+					SETColumn += (i!=1?",":"") + "[" + col.Name + "]";
+					SETColumnValue += (i!=1?",":"") + "\" + (values." + Temp1 + "==null?\"NULL\":\"{" + (i-1).ToString() + "}\") + \"";
+					SETParamsObj += (i!=1?",":"") + "values_" + Temp1;
+#>
+						if( "<#=(col.Name==table.Name?col.Name + "1":col.Name)#>"==GBAK.Engine.HelperMethods.GetVariableName(z=>values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>) & "<#=col.Nullable#>"!="True" & values.<#=(col.Name==table.Name?col.Name + "1":col.Name)#>==null){
+							
+							e.Status = true;
+							e.SETNotNullable("<#=(col.Name==table.Name?col.Name + "1":col.Name)#>");
+							throw new System.ArgumentException(e.Description);
+							return e;
+						}
+						object values_<#=Temp1#> = (values.<#=Temp1#> == null ? (object)"NULL": values.<#=Temp1#>);
+<#
+				}
+#>
+						foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerInsert_<#=table.Name#>)
+						{
+							if(!item(values)) { e.Status = true;e.Description = "Instead Trigger return false;"; return e; }
+						}
+							
+						System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("INSERT INTO [<#=table.Name#>] (<#=SETColumn#>) OUTPUT <#=OutputTableClause(table.Name,table.Columns,0)#> VALUES(<#=SETColumnValue#>);",<#=SETParamsObj#>);
+						var OutputResultData = OutputResult.FirstOrDefault();
+						<#=PrimaryKeyColumnName#> = OutputResultData.Inserted_<#=PrimaryKeyColumnName#>;
+						foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerInsert_<#=table.Name#>)
+						{
+							item(OutputResultData);
+						}
+					}
+					return e;
+				}
+				public static bool DELETE(IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> values) {
+					using (DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>))
+					{
 <#
 				
 				SETPrimaryColumn = "";
@@ -524,86 +468,86 @@ namespace <#= "GBAK" + "." + SData.Name + ".Engine" #>
 						SETPrimaryColumnValue = (col.Name==table.Name?col.Name + "1":col.Name);
 						break;
 					}
-					
-					
-#>
-
-<#
 				}
 #>
-			   foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerDelete_<#=table.Name#>)
-				{
-					foreach (var item in values)
-					{
-						if(!item2(item)) return false;
+					   foreach (GBAK.Engine.ActionWithResultBoolean<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>.InsteadTriggerDelete_<#=table.Name#>)
+						{
+							foreach (var item in values)
+							{
+								if(!item2(item)) return false;
+							}
+						}
+					   foreach (var item in values)
+						{
+							
+							
+							System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("DELETE FROM [<#=table.Name#>] OUTPUT <#=OutputTableClause(table.Name,table.Columns,2)#> WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
+							
+							foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerDelete_<#=table.Name#>)
+							{
+								item2(OutputResult.FirstOrDefault());
+							}
+						} 
 					}
+					return true;
 				}
-               foreach (var item in values)
-                {
-					
-					
-					System.Collections.Generic.IEnumerable<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> OutputResult = d.ExecuteQuery<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>("DELETE FROM [<#=table.Name#>] OUTPUT <#=OutputTableClause(table.Name,table.Columns,2)#> WHERE [<#=SETPrimaryColumn#>]={0}", item.<#=SETPrimaryColumnValue#>);
-					
-					foreach (Action<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>> item2 in GBAK.<#=SData.Name#>.Engine.Triggers<GBAK.<#=SData.Name#>.Tables.TableAfterTrigger_<#=table.Name#>>.TriggerDelete_<#=table.Name#>)
-					{
-						item2(OutputResult.FirstOrDefault());
-					}
-                } 
-				
-<#
-
-#>
-            }
-            return true;
-        }
+			}
+		}
 	}
 }
-<#
-    }
+<#		
+	}
 #>
 <#manager.StartNewFile(SData.Name + "_Engine_Triggers.cs");#>
 using System;
 using System.Collections.Generic;
 using System.Data.Linq;
 using System.Data.SqlClient;
-namespace GBAK.<#=SData.Name#>.Engine
+namespace GBAK
 {
-	internal static class Triggers<T>
+	public partial class <#=SData.Name#>
 	{
-<#
-		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		public partial class Engine
 		{
-			if (table.Name.StartsWith("sys"))
+			internal static class Triggers<T>
 			{
-				continue;
-			}
-			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
-				continue;
-			}
-#>
-		public static List<Action<T>> TriggerInsert_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
-		public static List<Action<T>> TriggerUpdate_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
-		public static List<Action<T>> TriggerDelete_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
-		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerInsert_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
-		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerUpdate_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
-		public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerDelete_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
 <#
+	foreach (Table table in server.Databases[sqlDatabase].Tables)
+	{
+		if (table.Name.StartsWith("sys"))
+		{
+			continue;
+		}
+		if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+			continue;
 		}
 #>
+				public static List<Action<T>> TriggerInsert_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<Action<T>> TriggerUpdate_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<Action<T>> TriggerDelete_<#=table.Name#> { get; set; } = new List<Action<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerInsert_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerUpdate_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+				public static List<GBAK.Engine.ActionWithResultBoolean<T>> InsteadTriggerDelete_<#=table.Name#> { get; set; } = new List<GBAK.Engine.ActionWithResultBoolean<T>>() { };
+<#
+	}
+#>
+			}
+		}
 	}
 }
-
 <#manager.StartNewFile(SData.Name + "_Triggers.cs");#>
 using System;
 using System.Linq;
 using System.Data.Linq;
 using System.Data.Linq.Mapping;
-namespace GBAK.<#=SData.Name#>
+namespace GBAK
 {
-	public static class Triggers
+	public partial class <#=SData.Name#>
 	{
-		public static void AfterAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, Action<T> MethodOrDelegate, params TriggerType[] TriggerType)
+		public static class Triggers
 		{
+			public static void AfterAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, Action<T> MethodOrDelegate, params TriggerType[] TriggerType)
+			{
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
@@ -615,21 +559,21 @@ namespace GBAK.<#=SData.Name#>
 				continue;
 			}
 #>
-			if (TableName.ToString() == "<#=table.Name#>")
-            {
-				foreach (TriggerType item in TriggerType)
-                {
-                    if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
-                }
-            }
+				if (TableName.ToString() == "<#=table.Name#>")
+				{
+					foreach (TriggerType item in TriggerType)
+					{
+						if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.TriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+					}
+				}
 <#
 		}
 #>
-		}
-		public static void InsteadAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, GBAK.Engine.ActionWithResultBoolean<T> MethodOrDelegate, params TriggerType[] TriggerType)
-		{
+			}
+			public static void InsteadAdd<T>(string Name, GBAK.<#=SData.Name#>.Tables.Name TableName, GBAK.Engine.ActionWithResultBoolean<T> MethodOrDelegate, params TriggerType[] TriggerType)
+			{
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
@@ -641,24 +585,25 @@ namespace GBAK.<#=SData.Name#>
 				continue;
 			}
 #>
-			if (TableName.ToString() == "<#=table.Name#>")
-            {
-				foreach (TriggerType item in TriggerType)
-                {
-                    if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
-                    if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
-                }
-            }
+				if (TableName.ToString() == "<#=table.Name#>")
+				{
+					foreach (TriggerType item in TriggerType)
+					{
+						if (item == Triggers.TriggerType.Insert) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerInsert_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Delete) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerDelete_<#=table.Name#>.Add(MethodOrDelegate);
+						if (item == Triggers.TriggerType.Update) GBAK.<#=SData.Name#>.Engine.Triggers<T>.InsteadTriggerUpdate_<#=table.Name#>.Add(MethodOrDelegate);
+					}
+				}
 <#
 		}
 #>
-		}
-		public enum TriggerType
-		{
-			Update,
-			Insert,
-			Delete
+			}
+			public enum TriggerType
+			{
+				Update,
+				Insert,
+				Delete
+			}
 		}
 	}
 }
@@ -670,29 +615,6 @@ using System.Data.Linq.Mapping;
 using GBAK.Engine;
 public static class Extensions_<#=SData.Name#>
 {
-/*	public static bool Remove<T>(this IQueryable<T> value) where T : GBAK.<#=SData.Name#>.Tables.BS
-    {
-        string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
-
-<#
-		foreach (Table table in server.Databases[sqlDatabase].Tables)
-		{
-			if (table.Name.StartsWith("sys"))
-			{
-				continue;
-			}
-			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
-				continue;
-			}
-#>
-		if(TableName=="<#=table.Name#>") return GBAK.<#=SData.Name#>.Engine.Table_<#=table.Name#>.DELETE(value as IQueryable<GBAK.<#=SData.Name#>.Tables.<#=table.Name#>>);
-<#
-		}
-#>
-
-        return false;
-    }
-*/
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
@@ -722,21 +644,17 @@ public static class Extensions_<#=SData.Name#>
 		}
 #>	
 }
-namespace <#= "GBAK" + "." + SData.Name #>
-{
-	public partial class Tables{
-		public class BS { }
-	}
-	public partial class SP{
-		public class SS { }
-	}
-}
+
+
+
 <#manager.StartNewFile(SData.Name + "_Add.cs");#>
 using System;
-namespace <#= "GBAK" + "." + SData.Name #>
+namespace <#= "GBAK"#>
 {
-	public partial class Tables
+	public partial class <#=SData.Name#>
     {
+		public partial class Tables
+		{
 <#
 		foreach (Table table in server.Databases[sqlDatabase].Tables)
 		{
@@ -763,78 +681,21 @@ namespace <#= "GBAK" + "." + SData.Name #>
 				}
 			}
 #>
-        public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values, out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>)
-        {
-			return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
-        }
-		public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
-        {
-			<#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#> = null;
-			return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
-        }
-<#
-		}
-#>
-    }
-}
-<#manager.StartNewFile(SData.Name + "_Tables.cs");#>
-using System;
-namespace <#= "GBAK" + "." + SData.Name #>
-{
-	public partial class Tables
-    {
-        public static int CommandTimeout { get; set; } = 30;
-		public enum Name
-        {
-<#
-		foreach (Table table in server.Databases[sqlDatabase].Tables)
-		{
-			if (table.Name.StartsWith("sys"))
+			public partial class <#=table.Name#>
 			{
-							continue;
-			}
-			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
-							continue;
-			}
-			WriteLine("            " + table.Name + ",");
-		}
-#>      
-			
-        }
-    }
-}
-<#manager.StartNewFile(SData.Name + "_Select.cs");#>
-using System;
-using System.Linq;
-using System.Data.Linq;
-namespace <#= "GBAK" + "." + SData.Name #>
-{
-	public partial class Tables{
-		public class SELECT: IDisposable
-		{
-			DataContext d = new DataContext(GBAK.Engine.PublicVariable.Connection_<#=SData.Name#>);
-			public SELECT(){
-				d.CommandTimeout = <#=SData.Name#>.Tables.CommandTimeout;
-				d.ExecuteCommand("SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;");
-			}
-			public void Dispose()
-			{
-				d.Dispose();
-			}
-<#
-		foreach (Table table in server.Databases[sqlDatabase].Tables)
-		{
-			if (table.Name.StartsWith("sys"))
-			{
-				continue;
-			}
-			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
-				continue;
-			}
-#>
-			public IQueryable<<#=SData.Name#>.Tables.<#=table.Name#>> <#=table.Name#>()
-			{
-				return d.GetTable<<#=SData.Name#>.Tables.<#=table.Name#>>();
+				public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values, out <#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#>)
+				{
+					return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
+				}
+				public static GBAK.Error Add(<#=SData.Name#>.Tables.<#=table.Name#> values)
+				{
+					<#=PrimaryKeyColumnType#> <#=PrimaryKeyColumnName#> = null;
+					return Engine.Table_<#=table.Name#>.Add(out <#=PrimaryKeyColumnName#>, values);
+				}
+				public static GBAK.Error Add(System.Collections.Generic.List<<#=SData.Name#>.Tables.<#=table.Name#>> BulkValues)
+				{
+					return Engine.Table_<#=table.Name#>.Add(BulkValues);
+				}
 			}
 <#
 		}
@@ -842,11 +703,44 @@ namespace <#= "GBAK" + "." + SData.Name #>
 		}
 	}
 }
-<# 
-	server.ConnectionContext.Disconnect();
-}	
-#>
 
+
+
+
+
+<#manager.StartNewFile(SData.Name + "_Tables.cs");#>
+using System;
+namespace <#= "GBAK  "  #>
+{
+	public partial class <#=SData.Name#>
+	{
+	public partial class Tables
+		{
+			public enum Name
+			{
+<#
+		foreach (Table table in server.Databases[sqlDatabase].Tables)
+		{
+			if (table.Name.StartsWith("sys"))
+			{
+							continue;
+			}
+			if(TableList.Where(z => (z.DBIdName == SData.Name) && (z.Name == table.Name)).FirstOrDefault()==null){
+							continue;
+			}
+			WriteLine("                " + table.Name + ",");
+		}
+#>      
+	
+			}
+		}
+	}
+}
+
+
+<#
+}
+#>
 <#manager.StartNewFile("PublicVariable.cs");#>
 using System.Data.SqlClient;
 namespace <#= "GBAK" + ".Engine" #>
@@ -860,6 +754,7 @@ namespace <#= "GBAK" + ".Engine" #>
 		<#}#>
 	}
 }
+
 <#manager.StartNewFile("Error.cs");#>
 using System;
  
@@ -874,6 +769,9 @@ namespace <#= "GBAK" #>
         }
 	}
 }
+
+
+
 <#manager.StartNewFile("HelperMethods.cs");#>
 /*
 sbyte	-128 to 127	Signed 8-bit integer
@@ -952,7 +850,6 @@ namespace <#= "GBAK" + ".Engine" #>
         }
 	}
 }
-
 <#manager.Process();#>
 
 <#+
@@ -1092,6 +989,7 @@ namespace <#= "GBAK" + ".Engine" #>
 		else if (DataType=="DateTime") cnv="ToDateTime";
 		else if (DataType=="decimal") cnv="ToDecimal";
 		else if (DataType=="double") cnv="ToDouble";
+		else if (DataType=="Double") cnv="ToDouble";
 		else if (DataType=="int") cnv="ToInt32";
 		else if (DataType=="Single") cnv="ToSingle";
 		else if (DataType=="short") cnv="ToInt16";

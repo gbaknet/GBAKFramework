@@ -19,15 +19,17 @@ using System;
 using System.Collections.Generic;
 namespace <#= classNamespace #>
 {
-	public partial class SP
+	public partial class <#=DBId#>
 	{
-		public class <#=item.Name#>
+		public partial class SP
 		{
+			public class <#=item.Name#>
+			{
 <#+
 				foreach(SPResult Result in SPItem.Results)
 				{
 #>
-			public IList<<#=item.Name#>_<#=Result.Name#>> <#=Result.Name#> { get; set; }
+				public IList<<#=item.Name#>_<#=Result.Name#>> <#=Result.Name#> { get; set; }
 <#+
 				}
 
@@ -35,19 +37,19 @@ namespace <#= classNamespace #>
                 {
 				string pt = GetNetDataType(prm.DataType.Name);
 #>
-			//public <#=pt + (pt=="string" | pt=="byte[]"?"":"?")#> <#=prm.Name.Substring(1)#>  { get; set; }<#=(string.IsNullOrEmpty(prm.DefaultValue)?"":" = " + prm.DefaultValue + ";")#>
+				//public <#=pt + (pt=="string" | pt=="byte[]"?"":"?")#> <#=prm.Name.Substring(1)#>  { get; set; }<#=(string.IsNullOrEmpty(prm.DefaultValue)?"":" = " + prm.DefaultValue + ";")#>
 <#+
                 }			
 #>
-		}
+			}
 <#+
 				int ResultItem=0;
 				foreach (SPResult Results in SPItem.Results)
                 {
 					
 #>
-		public class <#=item.Name#>_<#=Results.Name#>
-		{
+			public class <#=item.Name#>_<#=Results.Name#>
+			{
 <#+
 					if(Results.Params.Count>0){
 					foreach (SPParam Param in Results.Params)
@@ -55,7 +57,7 @@ namespace <#= classNamespace #>
 							string pt = GetNetDataType(Param.Type);
 							pt += (pt=="string" | pt=="byte[]"?"":"?");
 #>
-			public <#=pt#> <#=Param.Name#>  { get; set; }
+				public <#=pt#> <#=Param.Name#>  { get; set; }
 <#+
 						}
 					}else{
@@ -77,7 +79,7 @@ namespace <#= classNamespace #>
 							string pt = GetDataType(item3.DataType.Name);
 							pt += (pt=="string" | pt=="byte[]"?"":"?");
 #>
-			public <#=pt#> <#=item3.ColumnName#>  { get; set; }
+				public <#=pt#> <#=item3.ColumnName#>  { get; set; }
 <#+
 						}
 						Results.Params = ParamsData;
@@ -85,11 +87,12 @@ namespace <#= classNamespace #>
 					}
 
 #>
-		}
+			}
 <#+
 					ResultItem++;
 				}
 #>
+		}
 	}
 
 }
@@ -103,17 +106,16 @@ using System.Data.Linq;
 using System.Collections.Generic;
 namespace <#=classNamespace#>
 {
-	public partial class SP{
-		public class EXEC: IDisposable
-		{
-			//DataContext d = new DataContext(<#=classNamespaceRoot#>.Engine.PublicVariable.Connection_<#=DBId#>);
-			public EXEC(){
-				//d.CommandTimeout = <#=DBId#>.Tables.CommandTimeout;
-			}
-			public void Dispose()
+	public partial class <#=DBId#>
+	{
+		
+			public class EXEC
 			{
-				//d.Dispose();
-			}
+				DataContext d;
+				public EXEC(ref DataContext d)
+				{
+					this.d = d;
+				}
 <#+
 			foreach (StoredProcedure item in server.Databases[SData.DBName].StoredProcedures)
             {
@@ -127,30 +129,30 @@ namespace <#=classNamespace#>
                 }
 				if(prmData!="") prmData = prmData.Substring(1);
 #>
-			public SP.<#=item.Name#> <#=item.Name#>(<#=prmData#>)
-			{
-				System.Data.SqlClient.SqlParameter[] param = new System.Data.SqlClient.SqlParameter[0];
-                int i2 = 0;
+				public SP.<#=item.Name#> <#=item.Name#>(<#=prmData#>)
+				{
+					System.Data.SqlClient.SqlParameter[] param = new System.Data.SqlClient.SqlParameter[0];
+					int i2 = 0;
 <#+
 				foreach (StoredProcedureParameter prm in item.Parameters)
                 {
 #>
-                if ((<#=prm.Name.Substring(1)#>) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("<#=prm.Name#>", <#=prm.Name.Substring(1)#>); i2 = i2 + 1; }
+					if ((<#=prm.Name.Substring(1)#>) != null) { Array.Resize(ref param, i2 + 1); param[i2] = new System.Data.SqlClient.SqlParameter("<#=prm.Name#>", <#=prm.Name.Substring(1)#>); i2 = i2 + 1; }
 <#+
 				}
 #>
-				System.Data.DataSet ds = Engine.ExecutionModel.Exec("<#=item.Name#>", param);
-				SP.<#=item.Name#> temp = new SP.<#=item.Name#>();
+					System.Data.DataSet ds = Engine.ExecutionModel.Exec("<#=item.Name#>", param);
+					SP.<#=item.Name#> temp = new SP.<#=item.Name#>();
 <#+
 				int t_i=0;
 				foreach (SPResult Result in SPItem.Results)
 				{
 #>
-				List<SP.<#=SPItem.Name + "_" + Result.Name#>> <#=SPItem.Name + "_" + Result.Name#> = new List<SP.<#=SPItem.Name + "_" + Result.Name#>>();
-				for (int i = 0; i < ds.Tables[<#=t_i#>].Rows.Count; i++)
-				{
-					<#=SPItem.Name + "_" + Result.Name#>.Add(new SP.<#=SPItem.Name + "_" + Result.Name#>
+					List<SP.<#=SPItem.Name + "_" + Result.Name#>> <#=SPItem.Name + "_" + Result.Name#> = new List<SP.<#=SPItem.Name + "_" + Result.Name#>>();
+					for (int i = 0; i < ds.Tables[<#=t_i#>].Rows.Count; i++)
 					{
+						<#=SPItem.Name + "_" + Result.Name#>.Add(new SP.<#=SPItem.Name + "_" + Result.Name#>
+						{
 <#+
 					foreach(SPParam Param in Result.Params)
 					{
@@ -159,92 +161,97 @@ namespace <#=classNamespace#>
 						string pt2 = pt + (pt=="string" | pt=="byte[]"?"":"?");
 						
 #>
-						<#=Param.Name#> = (ds.Tables[<#=t_i#>].Rows[i]["<#=Param.Name#>"] is DBNull ? null : (<#=pt2#>)<#=ConvertObject(pt,"ds.Tables[{0}].Rows[i][\"{1}\"]",t_i,Param.Name)#>),
+							<#=Param.Name#> = (ds.Tables[<#=t_i#>].Rows[i]["<#=Param.Name#>"] is DBNull ? null : (<#=pt2#>)<#=ConvertObject(pt,"ds.Tables[{0}].Rows[i][\"{1}\"]",t_i,Param.Name)#>),
 <#+
 					}
 #>
-					});
-				}
-				temp.<#=Result.Name#> = <#=SPItem.Name + "_" + Result.Name#>;
+						});
+					}
+					temp.<#=Result.Name#> = <#=SPItem.Name + "_" + Result.Name#>;
 <#+
 					t_i++;
 				}
 #>
-				return temp;
-			}
+					return temp;
+				}
 <#+
 			}
 #>
+			
 		}
 	}
 }
-<#+
-						manager.StartNewFile(DBId + "_Engine_SP.cs");
-#>
+<#+manager.StartNewFile(DBId + "_Engine_SP.cs");#>
 using System;
 using System.Data.Linq;
 using System.Data.SqlClient;
-namespace <#=classNamespace#>.Engine
+namespace <#=classNamespace#>
 {
-	internal static class ExecutionModel
+	public partial class <#=DBId#>
 	{
-		public static System.Data.DataSet Exec(string CommandText, System.Data.SqlClient.SqlParameter[] values)
-        {
-            System.Data.DataSet result = new System.Data.DataSet();
-            try
-            {
-                    
-                using (SqlConnection dc = new SqlConnection(GBAK.Engine.PublicVariable.Connection_<#=DBId#>))
-                {
-					SqlCommand cmdUn = dc.CreateCommand();
-					cmdUn.CommandText = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;";
-                    SqlCommand cmd = dc.CreateCommand();
-                    cmd.CommandText = CommandText;
-                    cmd.CommandType = System.Data.CommandType.StoredProcedure;
-                    if (values.Length != 0)
-                    {
-                        if (values != null)
-                        {
-                            foreach (SqlParameter param in values)
-                            {
-                                if (param.Value == null)
-                                {
-                                    param.Value = DBNull.Value;
-                                }
-                                else
-                                {
-                                    if (param.Value is string)
-                                    {
-										if (param.Value.GetType().Name=="String")
-											param.Value = param.Value.ToString().Replace("'", "''");
-                                    }
-                                }
-                                cmd.Parameters.Add(param);
-                            }
-                        }
-                    }
-                    SqlDataAdapter da = new SqlDataAdapter();
-                    da.SelectCommand = (SqlCommand)cmd;
-                    dc.Open();
-					cmdUn.ExecuteNonQuery();
-                    da.Fill(result);
-                    dc.Close();
-                    dc.Dispose();
-                    da = null;
-                    return result;
-                }
-                    
-                
-                
-            }
-            catch (Exception ex)
-            {
-                throw new Exception(ex.Message);
-            }
-            return null;
+		public partial class Engine
+		{
+			internal static class ExecutionModel
+			{
+				public static System.Data.DataSet Exec(string CommandText, System.Data.SqlClient.SqlParameter[] values)
+				{
+					System.Data.DataSet result = new System.Data.DataSet();
+					try
+					{
+							
+						using (SqlConnection dc = new SqlConnection(GBAK.Engine.PublicVariable.Connection_<#=DBId#>))
+						{
+							SqlCommand cmdUn = dc.CreateCommand();
+							cmdUn.CommandText = "SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;";
+							SqlCommand cmd = dc.CreateCommand();
+							cmd.CommandText = CommandText;
+							cmd.CommandType = System.Data.CommandType.StoredProcedure;
+							if (values.Length != 0)
+							{
+								if (values != null)
+								{
+									foreach (SqlParameter param in values)
+									{
+										if (param.Value == null)
+										{
+											param.Value = DBNull.Value;
+										}
+										else
+										{
+											if (param.Value is string)
+											{
+												if (param.Value.GetType().Name=="String")
+													param.Value = param.Value.ToString().Replace("'", "''");
+											}
+										}
+										cmd.Parameters.Add(param);
+									}
+								}
+							}
+							SqlDataAdapter da = new SqlDataAdapter();
+							da.SelectCommand = (SqlCommand)cmd;
+							dc.Open();
+							cmdUn.ExecuteNonQuery();
+							da.Fill(result);
+							dc.Close();
+							dc.Dispose();
+							da = null;
+							return result;
+						}
+							
+						
+						
+					}
+					catch (Exception ex)
+					{
+						throw new Exception(ex.Message);
+					}
+					return null;
 
 
-        }
+				}
+			}
+		}
 	}
 }
 <#+

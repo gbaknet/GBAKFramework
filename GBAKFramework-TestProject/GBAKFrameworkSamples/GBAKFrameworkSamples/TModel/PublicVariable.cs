@@ -8,3 +8,4 @@ namespace GBAK.Engine
 				public static string Connection_MyLocalDBConnection = System.Configuration.ConfigurationManager.ConnectionStrings["Connection_MyLocalDBConnection"].ConnectionString;
 			}
 }
+

@@ -6,16 +6,6 @@ using System.Data.Linq.Mapping;
 using GBAK.Engine;
 public static class Extensions_MyLocalDBConnection
 {
-/*	public static bool Remove<T>(this IQueryable<T> value) where T : GBAK.MyLocalDBConnection.Tables.BS
-    {
-        string TableName = typeof(T).GetAttributeValue((TableAttribute dna) => dna.Name);
-
-		if(TableName=="People") return GBAK.MyLocalDBConnection.Engine.Table_People.DELETE(value as IQueryable<GBAK.MyLocalDBConnection.Tables.People>);
-		if(TableName=="PeopleProperties") return GBAK.MyLocalDBConnection.Engine.Table_PeopleProperties.DELETE(value as IQueryable<GBAK.MyLocalDBConnection.Tables.PeopleProperties>);
-
-        return false;
-    }
-*/
 	public static bool Remove(this IQueryable<GBAK.MyLocalDBConnection.Tables.People> value)
     {
 		return GBAK.MyLocalDBConnection.Engine.Table_People.DELETE(value as IQueryable<GBAK.MyLocalDBConnection.Tables.People>);
@@ -44,12 +34,6 @@ public static class Extensions_MyLocalDBConnection
    
 	
 }
-namespace GBAK.MyLocalDBConnection
-{
-	public partial class Tables{
-		public class BS { }
-	}
-	public partial class SP{
-		public class SS { }
-	}
-}
+
+
+
